@@ -1,0 +1,40 @@
+# Node modules
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Multer uploads (nếu bạn lưu file ảnh trực tiếp trong project)
+uploads/
+
+# Build outputs (nếu sau này dùng Babel/TypeScript)
+dist/
+build/
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# PM2 / Process manager
+pids
+*.pid
+*.seed
+
+# Optional cache
+.cache/
