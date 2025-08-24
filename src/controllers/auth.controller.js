@@ -8,26 +8,26 @@ let refreshTokens = [];
 // ------------------- Controllers -------------------
 
 // Đăng ký
-export const register = asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
+// export const register = asyncHandler(async (req, res) => {
+//   const { name, email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ message: "Email & password required" });
-  }
+//   if (!email || !password) {
+//     return res.status(400).json({ message: "Email & password required" });
+//   }
 
-  const exists = await User.findOne({ email });
-  if (exists) {
-    return res.status(409).json({ message: "Email already used" });
-  }
+//   const exists = await User.findOne({ email });
+//   if (exists) {
+//     return res.status(409).json({ message: "Email already used" });
+//   }
 
-  const user = await User.create({ name, email, password });
+//   const user = await User.create({ name, email, password });
 
-  return res.status(201).json({
-    id: user._id,
-    email: user.email,
-    name: user.name,
-  });
-});
+//   return res.status(201).json({
+//     id: user._id,
+//     email: user.email,
+//     name: user.name,
+//   });
+// });
 
 // Đăng nhập
 export const login = asyncHandler(async (req, res) => {
