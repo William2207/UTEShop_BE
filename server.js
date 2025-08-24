@@ -17,6 +17,7 @@ app.use(morgan("dev"));
 // routes
 app.get("/", (req, res) => res.send("UTEShop API running..."));
 app.use("/api/users", require("./src/routes/userRoutes"));
+app.use('/api/auth', require('./routes/auth'));
 
 // start server
 const PORT = process.env.PORT || 5000;
