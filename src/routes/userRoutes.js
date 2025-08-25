@@ -1,9 +1,11 @@
-const express = require("express");
-const router = express.Router();
-const authMiddleware = require("../middlewares/auth");
-const { default: User } = require("../models/user");
-const UserController = require("../controllers/UserController");
-// Route lấy profile (protected, cần token)
-router.get("/profile",authMiddleware, UserController.getProfile);
+import express from "express";
+import { requireAuth } from "../middlewares/auth.js";
+import User from "../models/user.js";
+import UserController from "../controllers/UserController.js";
 
-module.exports = router;
+const router = express.Router();
+
+// Route lấy profile (protected, cần token)
+router.get("/profile", requireAuth, UserController.getProfile);
+
+export default router;
