@@ -59,9 +59,14 @@ export const registerRequestOtp = asyncHandler(async (req, res) => {
   return res.json({ message: 'OTP đã được gửi' });
 });
 
-// 2) Đăng ký: xác minh OTP & tạo tài khoản
+/// 2) Đăng ký: xác minh OTP & tạo tài khoản
 export const registerVerify = asyncHandler(async (req, res) => {
-  const { email, code, name, password } = RegisterVerifySchema.parse(req).body;
+  // THAY ĐỔI 1: Không cần parse lại schema ở đây.
+  // Middleware `validate` đã làm việc này rồi. Chúng ta chỉ cần lấy dữ liệu đã được
+  // xác thực từ `req.body`.
+  const { email, code, username, password } = req.body;
+
+  // Logic xác thực OTP của bạn đã đúng, giữ nguyên.
   const otp = await Otp.findOne({ email, type: 'register' });
 
   if (!otp) {
@@ -77,13 +82,25 @@ export const registerVerify = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Mã OTP không đúng' });
   }
 
-  // Mongoose middleware đã hash password, không cần hash lại
-  const user = await User.create({ email, name, password });
+  // THAY ĐỔI 2 (QUAN TRỌNG NHẤT): Ánh xạ dữ liệu trước khi tạo User.
+  // Lấy giá trị từ biến `name` (mà frontend gửi) và gán nó vào trường `username`
+  // (mà Mongoose Model yêu cầu).
+  // Mật khẩu plaintext `password` được truyền vào, vì chúng ta tin tưởng
+  // Mongoose middleware `pre('save')` sẽ tự động hash nó.
+  const user = await User.create({
+    email,
+    username,
+    password,
+  });
+
   await Otp.deleteMany({ email, type: 'register' });
 
+  // THAY ĐỔI 3: Khi trả về dữ liệu, đảm bảo trả về đúng trường.
+  // Đối tượng `user` từ database sẽ có `user.username`. Chúng ta sẽ trả về
+  // là `name: user.username` để frontend nhận được dữ liệu nhất quán.
   return res.status(201).json({
     message: 'Đăng ký thành công',
-    user: { id: user._id, email: user.email, name: user.name },
+    user: { id: user._id, email: user.email, name: user.username },
   });
 });
 

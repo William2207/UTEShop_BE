@@ -15,7 +15,7 @@ import {
   me,
   refreshTokenController,
   logout,
-} from "../controllers/authController.js";
+} from "../controllers/AuthController.js";
 
 const router = Router();
 
@@ -31,7 +31,7 @@ const registerVerifySchema = z.object({
   body: z.object({
     email: z.string().email(),
     code: z.string().length(6),
-    name: z.string().min(2),
+    username: z.string().min(2),
     password: z.string().min(6),
   }),
 });
