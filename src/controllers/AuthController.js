@@ -50,7 +50,7 @@ let refreshTokens = [];
 
 // 1) Đăng ký: yêu cầu OTP
 export const registerRequestOtp = asyncHandler(async (req, res) => {
-  const { email } = RegisterRequestSchema.parse(req).body;
+  const { email } = req.data.body;
   const exists = await User.findOne({ email });
   if (exists) {
     return res.status(409).json({ error: 'Email đã tồn tại' });
