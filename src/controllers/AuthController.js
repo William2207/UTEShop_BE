@@ -1,218 +1,171 @@
-import { z } from 'zod';
+// src/controllers/authController.js
 import User from '../models/user.js';
 import Otp from '../models/Otp.js';
 import { sendMail } from '../config/mailer.js';
 import { otpHtml } from '../utils/emailTemplates.js';
 import generateOtp from '../utils/generateOtp.js';
 import { hash, compare } from '../utils/hash.js';
-import { signToken, signRefreshToken, verifyRefreshToken } from '../services/jwtServices.js';
+import {
+  signToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from '../services/jwtServices.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
-// ------------------- Zod Schemas -------------------
+/* ----------------------------- Helpers ----------------------------- */
 
-const EMAIL = z.string().email();
-const PASSWORD = z.string().min(6);
-
-const RegisterRequestSchema = z.object({ body: z.object({ email: EMAIL }) });
-const RegisterVerifySchema = z.object({
-  body: z.object({
-    email: EMAIL,
-    code: z.string().length(6),
-    name: z.string().min(2),
-    password: PASSWORD,
-  }),
-});
-
-const ResetRequestSchema = z.object({ body: z.object({ email: EMAIL }) });
-const ResetVerifySchema = z.object({
-  body: z.object({ email: EMAIL, code: z.string().length(6), newPassword: PASSWORD }),
-});
-
-// ------------------- Helper Functions -------------------
-
-function addMinutes(date, minutes) {
-  return new Date(date.getTime() + minutes * 60000);
-}
+const addMinutes = (d, mins) => new Date(d.getTime() + mins * 60000);
 
 async function createAndSendOtp(email, type, title) {
+  // clear OTP cũ cùng type
   await Otp.deleteMany({ email, type });
-  const code = generateOtp();
+
+  const code = generateOtp(); // 6 chữ số
   const codeHash = await hash(code);
-  const expiresAt = addMinutes(new Date(), 10);
-  await Otp.create({ email, codeHash, type, expiresAt });
-  await sendMail({ to: email, subject: `${title} – Mã OTP`, html: otpHtml({ title, code }) });
+  const expiresAt = addMinutes(new Date(), 10); // 10 phút
+
+  await Otp.create({ email, codeHash, type, expiresAt, attempts: 0 });
+
+  await sendMail({
+    to: email,
+    subject: `${title} – Mã OTP`,
+    html: otpHtml({ title, code }),
+  });
 }
 
-// Lưu refresh tokens (tạm trong memory - có thể lưu DB/Redis)
-let refreshTokens = [];
+/* ---------------------------- Controllers --------------------------- */
 
-// ------------------- Controllers -------------------
-
-// 1) Đăng ký: yêu cầu OTP
+// 1) Gửi OTP đăng ký
 export const registerRequestOtp = asyncHandler(async (req, res) => {
-  const { email } = RegisterRequestSchema.parse(req).body;
-  const exists = await User.findOne({ email });
-  if (exists) {
-    return res.status(409).json({ error: 'Email đã tồn tại' });
-  }
+  const { email } = req.body;
+
+  const exists = await User.findOne({ email }).lean();
+  if (exists) return res.status(409).json({ message: 'Email đã tồn tại' });
+
   await createAndSendOtp(email, 'register', 'Xác thực đăng ký');
   return res.json({ message: 'OTP đã được gửi' });
 });
 
-// 2) Đăng ký: xác minh OTP & tạo tài khoản
+// 2) Xác minh OTP & tạo tài khoản
 export const registerVerify = asyncHandler(async (req, res) => {
-  const { email, code, name, password } = RegisterVerifySchema.parse(req).body;
-  const otp = await Otp.findOne({ email, type: 'register' });
+  const { email, code, name, password } = req.body;
 
-  if (!otp) {
-    return res.status(400).json({ error: 'OTP không tồn tại hoặc đã dùng' });
-  }
+  const otp = await Otp.findOne({ email, type: 'register' });
+  if (!otp) return res.status(400).json({ message: 'OTP không tồn tại hoặc đã dùng' });
+
   if (otp.expiresAt < new Date()) {
     await Otp.deleteOne({ _id: otp._id });
-    return res.status(400).json({ error: 'OTP đã hết hạn' });
-  }
-  if (!(await compare(code, otp.codeHash))) {
-    otp.attempts += 1;
-    await otp.save();
-    return res.status(400).json({ error: 'Mã OTP không đúng' });
+    return res.status(400).json({ message: 'OTP đã hết hạn' });
   }
 
-  // Mongoose middleware đã hash password, không cần hash lại
-  const user = await User.create({ email, name, password });
+  const ok = await compare(code, otp.codeHash);
+  if (!ok) {
+    otp.attempts = (otp.attempts || 0) + 1;
+    await otp.save();
+    return res.status(400).json({ message: 'Mã OTP không đúng' });
+  }
+
+  // Map name -> username để tương thích schema (kể cả khi bạn đã alias)
+  const user = await User.create({ email, username: name, password });
+
   await Otp.deleteMany({ email, type: 'register' });
 
   return res.status(201).json({
     message: 'Đăng ký thành công',
-    user: { id: user._id, email: user.email, name: user.name },
+    user: {
+      id: user._id,
+      email: user.email,
+      name: user.name || user.username,
+    },
   });
 });
 
-// 3) Quên mật khẩu: yêu cầu OTP
+// 3) Gửi OTP quên mật khẩu
 export const resetRequestOtp = asyncHandler(async (req, res) => {
-  const { email } = ResetRequestSchema.parse(req).body;
-  const user = await User.findOne({ email });
-  if (!user) {
-    return res.status(404).json({ error: 'Email không tồn tại' });
-  }
+  const { email } = req.body;
+
+  const user = await User.findOne({ email }).lean();
+  if (!user) return res.status(404).json({ message: 'Email không tồn tại' });
+
   await createAndSendOtp(email, 'reset', 'Đặt lại mật khẩu');
   return res.json({ message: 'OTP đã được gửi' });
 });
 
-// 4) Quên mật khẩu: xác minh OTP & đổi mật khẩu
+// 4) Xác minh OTP & đổi mật khẩu
 export const resetVerify = asyncHandler(async (req, res) => {
-  const { email, code, newPassword } = ResetVerifySchema.parse(req).body;
-  const otp = await Otp.findOne({ email, type: 'reset' });
+  const { email, code, newPassword } = req.body;
 
-  if (!otp) {
-    return res.status(400).json({ error: 'OTP không tồn tại hoặc đã dùng' });
-  }
+  const otp = await Otp.findOne({ email, type: 'reset' });
+  if (!otp) return res.status(400).json({ message: 'OTP không tồn tại hoặc đã dùng' });
+
   if (otp.expiresAt < new Date()) {
     await Otp.deleteOne({ _id: otp._id });
-    return res.status(400).json({ error: 'OTP đã hết hạn' });
+    return res.status(400).json({ message: 'OTP đã hết hạn' });
   }
-  if (!(await compare(code, otp.codeHash))) {
-    otp.attempts += 1;
+
+  const ok = await compare(code, otp.codeHash);
+  if (!ok) {
+    otp.attempts = (otp.attempts || 0) + 1;
     await otp.save();
-    return res.status(400).json({ error: 'Mã OTP không đúng' });
+    return res.status(400).json({ message: 'Mã OTP không đúng' });
   }
 
   const user = await User.findOne({ email });
-  user.password = newPassword; // Gán password mới
-  await user.save(); // Mongoose middleware sẽ hash password trước khi lưu
+  if (!user) return res.status(404).json({ message: 'Email không tồn tại' });
+
+  user.password = newPassword; // pre-save hook sẽ hash
+  await user.save();
 
   await Otp.deleteMany({ email, type: 'reset' });
+
   return res.json({ message: 'Đổi mật khẩu thành công' });
 });
 
 // 5) Đăng nhập
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-
-  if (!email || !password) {
+  if (!email || !password)
     return res.status(400).json({ message: 'Email & password required' });
-  }
 
   const user = await User.findOne({ email });
-  if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+  if (!user) return res.status(401).json({ message: 'Sai email hoặc mật khẩu' });
 
   const ok = await user.comparePassword(password);
-  if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+  if (!ok) return res.status(401).json({ message: 'Sai email hoặc mật khẩu' });
 
-  // Tạo access + refresh token
   const token = signToken({ id: user._id, email: user.email });
-  const refresh = signRefreshToken({ id: user._id, email: user.email });
-  refreshTokens.push(refresh);
+  const refreshToken = signRefreshToken({ id: user._id, email: user.email });
 
-  // Log token lúc login
-  console.log('✅ Access Token created at login:', new Date().toISOString());
-  console.log('✅ Access Token:', token);
-  console.log('✅ Refresh Token:', refresh);
-
-  res.json({
+  return res.json({
     token,
-    refreshToken: refresh,
-    user: { id: user._id, email: user.email, name: user.name },
+    refreshToken,
+    user: { id: user._id, email: user.email, name: user.name || user.username },
   });
 });
 
-// 6) Lấy thông tin user
+// 6) Lấy profile (yêu cầu middleware requireAuth set req.user)
 export const me = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select('-password');
+  if (!user) return res.status(404).json({ message: 'User không tồn tại' });
   res.json({ user });
 });
 
-// 7) Refresh token
+// 7) Refresh access token
 export const refreshTokenController = asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
   if (!refreshToken) return res.status(401).json({ message: 'Refresh token required' });
 
   try {
     const payload = verifyRefreshToken(refreshToken);
-    const accessToken = signToken({ id: payload.id, email: payload.email });
-
-    // Log token khi refresh từ client
-    console.log('🔄 New Access Token issued via refresh:', new Date().toISOString());
-    console.log('🔄 New Access Token:', accessToken);
-
-    res.json({ token: accessToken });
-  } catch (e) {
-    return res.status(403).json({ message: 'Invalid or expired refresh token' });
+    const token = signToken({ id: payload.id, email: payload.email });
+    return res.json({ token });
+  } catch {
+    return res.status(403).json({ message: 'Refresh token không hợp lệ hoặc đã hết hạn' });
   }
 });
 
-// 8) Logout
-export const logout = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.body;
-  if (!refreshToken) {
-    return res.status(400).json({ message: 'Refresh token required' });
-  }
-
-  refreshTokens = refreshTokens.filter((t) => t !== refreshToken);
+// 8) Logout (nếu bạn lưu refresh token server-side thì xoá ở đây)
+// Hiện tại không lưu server-side -> chỉ trả OK để FE xoá local
+export const logout = asyncHandler(async (_req, res) => {
   res.json({ message: 'Logged out successfully' });
 });
-
-// ------------------- Auto Token mỗi 15 phút -------------------
-
-// Hàm tạo access token từ refreshTokens trong memory
-function autoGenerateToken() {
-  if (refreshTokens.length === 0) return;
-
-  refreshTokens.forEach((rt) => {
-    try {
-      const payload = verifyRefreshToken(rt); // kiểm tra refresh token còn hạn
-      const accessToken = signToken({ id: payload.id, email: payload.email });
-      console.log('🔄 Auto Access Token (15 phút):', new Date().toISOString());
-      console.log('🔄 Access Token:', accessToken);
-    } catch (err) {
-      console.log('❌ Refresh token hết hạn hoặc không hợp lệ:', rt);
-      // Nếu muốn xóa refresh token hết hạn khỏi array:
-      // refreshTokens = refreshTokens.filter(t => t !== rt);
-    }
-  });
-}
-
-// Gọi lần đầu
-autoGenerateToken();
-
-// Lặp lại mỗi 15 phút
-setInterval(autoGenerateToken, 15 * 60 * 1000);
