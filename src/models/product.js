@@ -12,6 +12,11 @@ const productSchema = new mongoose.Schema(
       ref: "Category",
       required: true,
     },
+    brand: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Brand",
+      required: true,
+    },
     // thêm field mới
     soldCount: { type: Number, default: 0, index: true },          // số lượng bán
     viewCount: { type: Number, default: 0, index: true },          // số lượt xem
