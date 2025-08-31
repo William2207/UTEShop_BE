@@ -3,7 +3,7 @@ import Product from "../models/product.js";
 // Lấy 4 khối sản phẩm cho trang chủ
 export const getHomeBlocks = async (req, res) => {
     try {
-        const [newest, bestSelling, mostViewed, topDiscount] = await Promise.all([
+        const [newest, bestSelling, mostViewed, topDiscount, totalCounts] = await Promise.all([
             Product.find()
                 .populate('category', 'name')
                 .populate('brand', 'name logo')
@@ -28,13 +28,28 @@ export const getHomeBlocks = async (req, res) => {
                 .sort({ discountPercentage: -1 })
                 .limit(4)
                 .lean(),
+            // Đếm tổng số sản phẩm cho mỗi category
+            Promise.all([
+                Product.countDocuments().lean(), // total newest
+                Product.countDocuments({ soldCount: { $gt: 0 } }).lean(), // total bestselling
+                Product.countDocuments({ viewCount: { $gt: 0 } }).lean(), // total mostviewed
+                Product.countDocuments({ discountPercentage: { $gt: 0 } }).lean() // total discount
+            ])
         ]);
+
+        const [totalNewest, totalBestSelling, totalMostViewed, totalDiscount] = totalCounts;
 
         res.json({
             newest,
             bestSelling,
             mostViewed,
-            topDiscount
+            topDiscount,
+            totals: {
+                newest: totalNewest,
+                bestSelling: totalBestSelling,
+                mostViewed: totalMostViewed,
+                topDiscount: totalDiscount
+            }
         });
     } catch (err) {
         console.error('Error in getHomeBlocks:', err);
