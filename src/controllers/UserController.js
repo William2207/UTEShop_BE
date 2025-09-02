@@ -104,12 +104,8 @@ export const changePassword = async (req, res) => {
       return res.status(400).json({ message: "Mật khẩu hiện tại không đúng." });
     }
 
-    // 3. Hash mật khẩu mới
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-
     // 4. Cập nhật mật khẩu mới vào DB
-    user.password = hashedPassword;
+    user.password = newPassword; // pre-save hook sẽ hash
     await user.save();
 
     res.status(200).json({ message: "Đổi mật khẩu thành công." });
