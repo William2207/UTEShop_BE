@@ -10,6 +10,12 @@ import rateLimiter from "./src/middlewares/rateLimiter.js";
 import authRoutes from "./src/routes/authRoutes.js";
 import userRoutes from "./src/routes/userRoutes.js";
 
+// tạo 4 khoi hien thi san pham
+import productRoutes from "./src/routes/productRoutes.js";
+import categoryRoutes from "./src/routes/categoryRoutes.js";
+import brandRoutes from "./src/routes/brandRoutes.js";
+
+
 const app = express();
 
 /* ----------------------------- Middlewares ------------------------------ */
@@ -44,6 +50,11 @@ app.get("/", (req, res) => res.send("UTEShop API running..."));
 
 app.use("/api/auth", rateLimiter, authRoutes);
 app.use("/api/user", userRoutes);
+
+// thêm 4 khối sản phẩm trang chủ
+app.use("/api/products", productRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/brands", brandRoutes);
 
 /* ------------------------------- 404 & Err ------------------------------ */
 
