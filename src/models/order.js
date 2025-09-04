@@ -16,6 +16,21 @@ const orderSchema = new mongoose.Schema({
     default: "pending"
   },
   shippingAddress: { type: String, required: true },
+  paymentMethod: {
+    type: String,
+    enum: ["COD", "ELECTRONIC_WALLET"],
+    required: true,
+    default: "COD"
+  },
+  paymentStatus: {
+    type: String,
+    enum: ["unpaid", "paid", "refunded"],
+    default: "unpaid"
+  },
+  codDetails: {
+    phoneNumberConfirmed: { type: Boolean, default: false },
+    additionalNotes: { type: String }
+  }
 }, { timestamps: true });
 
 export default mongoose.model("Order", orderSchema);
