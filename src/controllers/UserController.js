@@ -15,12 +15,10 @@ export const getProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const updates = req.body; // Lấy toàn bộ body từ request
+    const updates = req.body; 
 
-    // 1. Định nghĩa các trường mà người dùng được phép cập nhật thông qua endpoint này
     const allowedUpdates = ["name", "email", "phone", "birthDate", "address"];
 
-    // 2. Tạo một đối tượng mới chỉ chứa các trường hợp lệ từ `updates`
     const finalUpdates = {};
     for (const key in updates) {
       if (allowedUpdates.includes(key)) {
@@ -35,7 +33,6 @@ export const updateProfile = async (req, res) => {
         .json({ message: "No valid fields provided for update." });
     }
 
-    // 3. Sử dụng đối tượng `finalUpdates` đã được làm sạch
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { $set: finalUpdates }, // Sử dụng $set để đảm bảo an toàn

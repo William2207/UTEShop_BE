@@ -3,6 +3,7 @@ import "dotenv/config"; // nạp .env sớm nhất
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
+import agenda from "./src/config/agenda.js";
 
 // Modules của bạn
 import connectDB from "./src/config/db.js";
@@ -14,8 +15,7 @@ import userRoutes from "./src/routes/userRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
 import categoryRoutes from "./src/routes/categoryRoutes.js";
 import brandRoutes from "./src/routes/brandRoutes.js";
-import orderRoutes from './src/routes/orderRoutes.js';
-
+import orderRoutes from "./src/routes/orderRoutes.js";
 
 const app = express();
 
@@ -56,7 +56,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/brands", brandRoutes);
-app.use('/api/orders', orderRoutes);
+app.use("/api/orders", orderRoutes);
 
 /* ------------------------------- 404 & Err ------------------------------ */
 
@@ -82,7 +82,9 @@ const PORT = Number(process.env.PORT) || 5000;
 const serverStart = async () => {
   try {
     await connectDB(); // chỉ start server sau khi DB OK
+    await agenda.start();
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    console.log("Agenda started.");
   } catch (e) {
     console.error("❌ Failed to start server:", e);
     process.exit(1);

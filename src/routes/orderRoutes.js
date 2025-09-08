@@ -12,5 +12,7 @@ router.get('/', requireAuth, OrderController.getUserOrders);
 
 // Cancel an order (requires authentication)
 router.delete('/:orderId', requireAuth, OrderController.cancelOrder);
+router.put('/:orderId',requireAuth,OrderController.cancelOrder);
+
 
 export default router;
