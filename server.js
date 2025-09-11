@@ -15,6 +15,7 @@ import productRoutes from "./src/routes/productRoutes.js";
 import categoryRoutes from "./src/routes/categoryRoutes.js";
 import brandRoutes from "./src/routes/brandRoutes.js";
 import orderRoutes from './src/routes/orderRoutes.js';
+import cartRoutes from './src/routes/cartRoutes.js';
 
 
 const app = express();
@@ -29,12 +30,7 @@ const origins = (process.env.FRONTEND_URL || "")
 
 app.use(
   cors({
-    origin(origin, cb) {
-      if (!origin) return cb(null, true); // cho phép tool như curl, Postman
-      if (origins.length === 0 || origins.includes(origin))
-        return cb(null, true);
-      return cb(new Error("Not allowed by CORS"));
-    },
+    origin: true, // Allow all origins in development
     credentials: false, // nếu dùng cookie/session hãy chuyển true và cấu hình lại
   })
 );
@@ -57,6 +53,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/brands", brandRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/cart', cartRoutes);
 
 /* ------------------------------- 404 & Err ------------------------------ */
 
