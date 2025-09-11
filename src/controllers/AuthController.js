@@ -123,23 +123,67 @@ export const resetVerify = asyncHandler(async (req, res) => {
 
 // 5) Đăng nhập
 export const login = asyncHandler(async (req, res) => {
+  console.log('🔐 LOGIN - Request body:', req.body);
+
   const { email, password } = req.body;
-  if (!email || !password)
-    return res.status(400).json({ message: 'Email & password required' });
+  if (!email || !password) {
+    return res.status(400).json({
+      message: 'Email & password required',
+      code: 'MISSING_CREDENTIALS'
+    });
+  }
 
+  // Tìm user theo email
   const user = await User.findOne({ email });
-  if (!user) return res.status(401).json({ message: 'Sai email hoặc mật khẩu' });
+  if (!user) {
+    console.log('❌ LOGIN - User not found:', email);
+    return res.status(401).json({
+      message: 'Sai email hoặc mật khẩu',
+      code: 'INVALID_CREDENTIALS'
+    });
+  }
 
+  // Kiểm tra password
   const ok = await user.comparePassword(password);
-  if (!ok) return res.status(401).json({ message: 'Sai email hoặc mật khẩu' });
+  if (!ok) {
+    console.log('❌ LOGIN - Wrong password for:', email);
+    return res.status(401).json({
+      message: 'Sai email hoặc mật khẩu',
+      code: 'INVALID_CREDENTIALS'
+    });
+  }
 
-  const token = signToken({ id: user._id, email: user.email });
-  const refreshToken = signRefreshToken({ id: user._id, email: user.email });
+  // Tạo payload cho JWT với đầy đủ thông tin
+  const payload = {
+    _id: user._id, // Sử dụng _id thay vì id để nhất quán với MongoDB
+    id: user._id, // Thêm id để tương thích
+    email: user.email,
+    name: user.name,
+    role: user.role
+  };
+
+  console.log('🔑 LOGIN - Creating token with payload:', payload);
+
+  // Tạo tokens
+  const token = signToken(payload);
+  const refreshToken = signRefreshToken(payload);
+
+  console.log('✅ LOGIN - Login successful for:', email);
 
   return res.json({
     token,
     refreshToken,
-    user: { id: user._id, email: user.email, name: user.name || user.username },
+    user: {
+      _id: user._id,
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      phone: user.phone || '',
+      address: user.address || '',
+      avatarUrl: user.avatarUrl || ''
+    },
+    message: 'Đăng nhập thành công'
   });
 });
 

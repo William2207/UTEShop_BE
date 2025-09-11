@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { z } from 'zod';
+import { z } from "zod";
 
 // Middlewares
-import validate from '../middlewares/validateRequest.js';
+import validate from "../middlewares/validateRequest.js";
 import { requireAuth } from "../middlewares/auth.js";
 
 // Controllers (import tất cả các hàm cần thiết từ file controller đã hợp nhất)
@@ -15,7 +15,7 @@ import {
   me,
   refreshTokenController,
   logout,
-} from "../controllers/authController.js";
+} from "../controllers/AuthController.js";
 
 const router = Router();
 
@@ -47,12 +47,12 @@ const resetVerifySchema = z.object({
 // ------------------- Route Definitions -------------------
 
 // --- OTP & Registration Routes ---
-router.post('/register/request-otp', validate(emailSchema), registerRequestOtp);
-router.post('/register/verify', validate(registerVerifySchema), registerVerify);
+router.post("/register/request-otp", validate(emailSchema), registerRequestOtp);
+router.post("/register/verify", validate(registerVerifySchema), registerVerify);
 
 // --- Password Reset Routes ---
-router.post('/forgot/request-otp', validate(emailSchema), resetRequestOtp);
-router.post('/forgot/verify', validate(resetVerifySchema), resetVerify);
+router.post("/forgot/request-otp", validate(emailSchema), resetRequestOtp);
+router.post("/forgot/verify", validate(resetVerifySchema), resetVerify);
 
 // --- Standard Auth Routes ---
 router.post("/login", login);
