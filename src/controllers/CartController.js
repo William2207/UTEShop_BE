@@ -27,6 +27,7 @@ export const getCart = asyncHandler(async (req, res) => {
   const totalAmount = cart.items.reduce((total, item) => {
     return total + (item.product.price * item.quantity);
   }, 0);
+  const distinctItemCount = cart.items.length; // Số loại sản phẩm khác nhau
 
   res.status(200).json({
     success: true,
@@ -34,6 +35,7 @@ export const getCart = asyncHandler(async (req, res) => {
       items: cart.items,
       totalItems,
       totalAmount,
+      distinctItemCount, // Số loại sản phẩm khác nhau cho badge
     },
   });
 });
@@ -110,6 +112,17 @@ export const addToCart = asyncHandler(async (req, res) => {
   const totalAmount = updatedCart.items.reduce((total, item) => {
     return total + (item.product.price * item.quantity);
   }, 0);
+  const distinctItemCount = updatedCart.items.length; // Số loại sản phẩm khác nhau
+
+  console.log('🛒 Backend AddToCart Debug:', {
+    isNewProduct,
+    totalItems,
+    distinctItemCount,
+    cartItems: updatedCart.items.map(item => ({
+      productId: item.product._id,
+      quantity: item.quantity
+    }))
+  });
 
   res.status(200).json({
     success: true,
@@ -118,6 +131,7 @@ export const addToCart = asyncHandler(async (req, res) => {
       items: updatedCart.items,
       totalItems,
       totalAmount,
+      distinctItemCount, // Số loại sản phẩm khác nhau cho badge
       isNewProduct, // Thêm flag để frontend biết có phải sản phẩm mới không
     },
   });
@@ -128,13 +142,6 @@ export const addToCart = asyncHandler(async (req, res) => {
 // @access  Private
 export const updateCartItem = asyncHandler(async (req, res) => {
   const { productId, quantity } = req.body;
-
-  if (quantity < 1) {
-    return res.status(400).json({
-      success: false,
-      message: "Số lượng phải lớn hơn 0",
-    });
-  }
 
   // Kiểm tra sản phẩm có tồn tại không
   const product = await Product.findById(productId);
@@ -153,6 +160,7 @@ export const updateCartItem = asyncHandler(async (req, res) => {
     });
   }
 
+  // Tìm giỏ hàng của user
   const cart = await Cart.findOne({ user: req.user._id });
   if (!cart) {
     return res.status(404).json({
@@ -161,6 +169,7 @@ export const updateCartItem = asyncHandler(async (req, res) => {
     });
   }
 
+  // Tìm index của sản phẩm trong giỏ hàng
   const itemIndex = cart.items.findIndex(
     (item) => item.product.toString() === productId
   );
@@ -172,7 +181,12 @@ export const updateCartItem = asyncHandler(async (req, res) => {
     });
   }
 
+  // Lưu lại số lượng cũ
+  const oldQuantity = cart.items[itemIndex].quantity;
+  
+  // Cập nhật số lượng
   cart.items[itemIndex].quantity = quantity;
+
   await cart.save();
 
   // Populate và trả về giỏ hàng đã cập nhật
@@ -185,14 +199,28 @@ export const updateCartItem = asyncHandler(async (req, res) => {
   const totalAmount = updatedCart.items.reduce((total, item) => {
     return total + (item.product.price * item.quantity);
   }, 0);
+  const distinctItemCount = updatedCart.items.length; // Số loại sản phẩm khác nhau
+
+  console.log('🛒 UpdateCartItem Debug:', {
+    productId,
+    oldQuantity,
+    newQuantity: quantity,
+    totalItems,
+    distinctItemCount,
+    isQuantityUpdate: true, // Đánh dấu rõ là cập nhật số lượng
+    isNewProduct: false // Không phải sản phẩm mới
+  });
 
   res.status(200).json({
     success: true,
-    message: "Đã cập nhật giỏ hàng",
+    message: "Đã cập nhật số lượng sản phẩm",
     data: {
       items: updatedCart.items,
       totalItems,
       totalAmount,
+      distinctItemCount, // Số loại sản phẩm khác nhau cho badge
+      isQuantityUpdate: true, // Thêm flag để frontend biết là cập nhật số lượng
+      isNewProduct: false, // Không phải sản phẩm mới
     },
   });
 });
@@ -227,6 +255,7 @@ export const removeFromCart = asyncHandler(async (req, res) => {
   const totalAmount = updatedCart.items.reduce((total, item) => {
     return total + (item.product.price * item.quantity);
   }, 0);
+  const distinctItemCount = updatedCart.items.length; // Số loại sản phẩm khác nhau
 
   res.status(200).json({
     success: true,
@@ -235,6 +264,7 @@ export const removeFromCart = asyncHandler(async (req, res) => {
       items: updatedCart.items,
       totalItems,
       totalAmount,
+      distinctItemCount, // Số loại sản phẩm khác nhau cho badge
     },
   });
 });
@@ -252,6 +282,7 @@ export const clearCart = asyncHandler(async (req, res) => {
       items: [],
       totalItems: 0,
       totalAmount: 0,
+      distinctItemCount: 0, // Số loại sản phẩm khác nhau cho badge
     },
   });
 });
@@ -263,11 +294,13 @@ export const getCartItemCount = asyncHandler(async (req, res) => {
   const cart = await Cart.findOne({ user: req.user._id });
   
   const totalItems = cart ? cart.items.reduce((total, item) => total + item.quantity, 0) : 0;
+  const distinctItemCount = cart ? cart.items.length : 0; // Số loại sản phẩm khác nhau
 
   res.status(200).json({
     success: true,
     data: {
       totalItems,
+      distinctItemCount, // Số loại sản phẩm khác nhau cho badge
     },
   });
 });
