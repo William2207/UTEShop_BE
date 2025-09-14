@@ -3,6 +3,7 @@ import Product from "../models/product.js";
 import Cart from "../models/cart.js";
 import agenda from "../config/agenda.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import momoService from "../services/momoServices.js";
 
 class OrderController {
   // Create a new order
@@ -16,6 +17,8 @@ class OrderController {
       paymentMethod = "COD",
       codDetails,
       totalPrice: providedTotalPrice,
+      momoOrderId, // Cho thanh toán MoMo
+      momoRequestId, // requestId từ MoMo để đối soát giao dịch
     } = req.body;
 
     // Kiểm tra user authentication
@@ -57,8 +60,12 @@ class OrderController {
           throw new Error(`Insufficient stock for product ${product.name}`);
         }
 
-        // Calculate price and update total
-        const itemPrice = product.price * item.quantity;
+        // Calculate discounted price
+        const discountAmount = (product.price * product.discountPercentage) / 100;
+        const discountedPrice = product.price - discountAmount;
+
+        // Calculate item price with discount and update total
+        const itemPrice = discountedPrice * item.quantity;
         totalPrice += itemPrice;
 
         // Reduce product stock
@@ -69,13 +76,43 @@ class OrderController {
         return {
           product: item.product,
           quantity: item.quantity,
-          price: product.price,
+          originalPrice: product.price, // Giá gốc
+          discountPercentage: product.discountPercentage, // % giảm giá
+          discountedPrice: discountedPrice, // Giá đã giảm
+          price: discountedPrice, // Giá cuối cùng (đã giảm) để tương thích với code cũ
         };
       })
     );
 
     console.log("💰 ORDER - Calculated total price:", totalPrice);
     console.log("💰 ORDER - Provided total price:", providedTotalPrice);
+
+    // Xử lý thanh toán online nếu cần
+    let onlinePaymentInfo = {};
+    let initialPaymentStatus = "unpaid";
+
+    if (paymentMethod === "MOMO" && momoOrderId) {
+      // Kiểm tra trạng thái thanh toán MoMo
+      const requestIdForQuery = momoRequestId || momoOrderId;
+      const paymentResult = await momoService.queryTransaction(momoOrderId, requestIdForQuery);
+
+      if (!paymentResult.success || String(paymentResult.data.resultCode) !== '0') {
+        return res.status(400).json({
+          message: "Payment verification failed",
+          code: "PAYMENT_FAILED",
+          error: paymentResult.data?.message || "Payment not completed",
+        });
+      }
+
+      onlinePaymentInfo = {
+        transactionId: paymentResult.data.transId,
+        gateway: 'MOMO',
+        paidAt: new Date(),
+        amount: paymentResult.data.amount,
+      };
+
+      initialPaymentStatus = "paid";
+    }
 
     // Create order
     const order = new Order({
@@ -84,10 +121,12 @@ class OrderController {
       totalPrice,
       shippingAddress: shippingAddress.trim(),
       paymentMethod,
+      paymentStatus: initialPaymentStatus,
       codDetails: {
         phoneNumberConfirmed: false,
         additionalNotes: codDetails?.additionalNotes || "",
       },
+      ...(Object.keys(onlinePaymentInfo).length > 0 && { onlinePaymentInfo }),
     });
 
     console.log("📝 ORDER - Creating order:", {
@@ -99,10 +138,10 @@ class OrderController {
 
     // Save order
     await order.save();
-    await agenda.schedule("in 10 minutes", "process pending order", {
+    await agenda.schedule("in 1 minute", "process pending order", {
       orderId: order._id,
     });
-    console.log(`Job scheduled for order ${order._id} in 10 minutes.`);
+    console.log(`Job scheduled for order ${order._id} in 1 minute.`);
     console.log("✅ ORDER - Order saved successfully:", order._id);
 
     // Clear user's cart after order creation

@@ -18,6 +18,7 @@ import brandRoutes from "./src/routes/brandRoutes.js";
 import cartRoutes from './src/routes/cartRoutes.js';
 
 import orderRoutes from "./src/routes/orderRoutes.js";
+import paymentRoutes from "./src/routes/paymentRoutes.js";
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use("/api/brands", brandRoutes);
 app.use('/api/cart', cartRoutes);
 
 app.use("/api/orders", orderRoutes);
+app.use("/api/payment", paymentRoutes);
 
 
 /* ------------------------------- 404 & Err ------------------------------ */

@@ -20,7 +20,10 @@ const orderSchema = new mongoose.Schema(
           required: true,
         },
         quantity: { type: Number, required: true },
-        price: { type: Number, required: true }, // copy giá tại thời điểm đặt hàng
+        originalPrice: { type: Number, required: true }, // Giá gốc tại thời điểm đặt hàng
+        discountPercentage: { type: Number, default: 0 }, // % giảm giá tại thời điểm đặt hàng
+        discountedPrice: { type: Number, required: true }, // Giá đã giảm tại thời điểm đặt hàng
+        price: { type: Number, required: true }, // Giá cuối cùng (đã giảm) - để tương thích với code cũ
       },
     ],
     totalPrice: { type: Number, required: true },
@@ -39,18 +42,29 @@ const orderSchema = new mongoose.Schema(
     shippingAddress: { type: String, required: true },
     paymentMethod: {
       type: String,
-      enum: ["COD", "ELECTRONIC_WALLET"],
+      enum: ["COD", "STRIPE", "MOMO", "ZALOPAY"],
       required: true,
       default: "COD",
     },
     paymentStatus: {
       type: String,
-      enum: ["unpaid", "paid", "refunded"],
+      enum: ["unpaid", "paid", "refunded", "processing"],
       default: "unpaid",
     },
     codDetails: {
       phoneNumberConfirmed: { type: Boolean, default: false },
       additionalNotes: { type: String },
+    },
+    stripePaymentInfo: {
+      paymentIntentId: { type: String },
+      clientSecret: { type: String },
+      paymentMethodId: { type: String },
+    },
+    onlinePaymentInfo: {
+      transactionId: { type: String },
+      gateway: { type: String }, // "STRIPE", "MOMO", "ZALOPAY"
+      paidAt: { type: Date },
+      amount: { type: Number },
     },
   },
   { timestamps: true }
