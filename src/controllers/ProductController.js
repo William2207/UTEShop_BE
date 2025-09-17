@@ -1,4 +1,7 @@
 import Product from "../models/product.js";
+import Review from "../models/review.js";
+import Order from "../models/order.js";
+import mongoose from "mongoose";
 
 // Lấy 4 khối sản phẩm cho trang chủ
 export const getHomeBlocks = async (req, res) => {
@@ -152,5 +155,85 @@ export const increaseSold = async (req, res) => {
         res.json(product);
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+};
+
+// Lấy thống kê sản phẩm (số khách mua, số review)
+export const getProductStats = async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log('📊 Getting product stats for:', id);
+
+        const [product, reviewStats, purchaseStats] = await Promise.all([
+            Product.findById(id).populate('category', 'name').populate('brand', 'name logo'),
+            Review.aggregate([
+                { $match: { product: new mongoose.Types.ObjectId(id) } },
+                {
+                    $group: {
+                        _id: null,
+                        totalReviews: { $sum: 1 },
+                        averageRating: { $avg: "$rating" },
+                        ratingDistribution: {
+                            $push: "$rating"
+                        }
+                    }
+                }
+            ]),
+            Order.aggregate([
+                { $match: { status: "delivered", 'items.product': new mongoose.Types.ObjectId(id) } }, // delivered orders
+                { $unwind: "$items" },
+                { $match: { 'items.product': new mongoose.Types.ObjectId(id) } },
+                {
+                    $group: {
+                        _id: "$user",
+                        totalQuantity: { $sum: "$items.quantity" }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        uniqueBuyers: { $sum: 1 },
+                        totalQuantitySold: { $sum: "$totalQuantity" }
+                    }
+                }
+            ])
+        ]);
+
+        if (!product) {
+            return res.status(404).json({ message: "Sản phẩm không tồn tại" });
+        }
+
+        // Tính phân bố rating
+        const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        if (reviewStats.length > 0 && reviewStats[0].ratingDistribution) {
+            reviewStats[0].ratingDistribution.forEach(rating => {
+                ratingDistribution[rating]++;
+            });
+        }
+
+        const stats = {
+            product: {
+                _id: product._id,
+                name: product.name,
+                soldCount: product.soldCount,
+                viewCount: product.viewCount,
+                stock: product.stock
+            },
+            reviews: {
+                totalReviews: reviewStats.length > 0 ? reviewStats[0].totalReviews : 0,
+                averageRating: reviewStats.length > 0 ? Math.round(reviewStats[0].averageRating * 10) / 10 : 0,
+                ratingDistribution
+            },
+            purchases: {
+                uniqueBuyers: purchaseStats.length > 0 ? purchaseStats[0].uniqueBuyers : 0,
+                totalQuantitySold: purchaseStats.length > 0 ? purchaseStats[0].totalQuantitySold : 0
+            }
+        };
+
+        console.log('✅ Product stats result:', stats);
+        res.json(stats);
+    } catch (error) {
+        console.error('❌ Error in getProductStats:', error);
+        res.status(500).json({ message: "Server error" });
     }
 };

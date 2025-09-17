@@ -20,6 +20,12 @@ import cartRoutes from './src/routes/cartRoutes.js';
 import orderRoutes from "./src/routes/orderRoutes.js";
 import paymentRoutes from "./src/routes/paymentRoutes.js";
 
+// Import routes mới
+import favoriteRoutes from "./src/routes/favoriteRoutes.js";
+import viewedProductRoutes from "./src/routes/viewedProductRoutes.js";
+import similarProductRoutes from "./src/routes/similarProductRoutes.js";
+import reviewRoutes from "./src/routes/reviewRoutes.js";
+
 const app = express();
 
 /* ----------------------------- Middlewares ------------------------------ */
@@ -59,6 +65,12 @@ app.use('/api/cart', cartRoutes);
 
 app.use("/api/orders", orderRoutes);
 app.use("/api/payment", paymentRoutes);
+
+// Routes mới
+app.use("/api/favorites", favoriteRoutes);
+app.use("/api/viewed-products", viewedProductRoutes);
+app.use("/api/similar-products", similarProductRoutes);
+app.use("/api/reviews", reviewRoutes);
 
 
 /* ------------------------------- 404 & Err ------------------------------ */
