@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getHomeBlocks, getProducts, increaseView, increaseSold } from "../controllers/ProductController.js";
+import { getHomeBlocks, getProducts, increaseView, increaseSold, getProductStats } from "../controllers/ProductController.js";
 
 const router = Router();
 
@@ -11,6 +11,9 @@ router.post("/:id/view", increaseView);
 
 // tăng sold count khi mua hàng thành công
 router.post("/:id/sold", increaseSold);
+
+// lấy thống kê sản phẩm (số khách mua, số review)
+router.get("/:id/stats", getProductStats);
 
 
 router.get("/:id", async (req, res) => {
