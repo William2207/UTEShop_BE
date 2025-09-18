@@ -3,7 +3,7 @@ import Product from "./src/models/product.js";
 import Category from "./src/models/category.js";
 import Brand from "./src/models/brand.js";
 
-const MONGO_URI = "mongodb+srv://william1111227:jxqVcmcCnTdf9odP@cluster0.b5svk7u.mongodb.net/";
+const MONGO_URI = "mongodb://127.0.0.1:27017/fashion_store";
 
 async function seed() {
     try {
