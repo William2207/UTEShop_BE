@@ -2,9 +2,16 @@
 import { Agenda } from 'agenda';
 import Order from '../models/order.js';
 
-const mongoConnectionString = process.env.MONGO_URI; // Lấy từ biến môi trường
-
-const agenda = new Agenda({ db: { address: mongoConnectionString } });
+const mongoConnectionString = process.env.MONGO_URI 
+const agenda = new Agenda({ 
+  db: { 
+    address: mongoConnectionString,
+    options: {
+      serverSelectionTimeoutMS: 5000,
+      family: 4, // Force IPv4 để tránh lỗi ::1
+    }
+  } 
+});
 
 // Định nghĩa logic cho một job có tên là 'process pending order'
 agenda.define('process pending order', async (job) => {
