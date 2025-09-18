@@ -3,6 +3,7 @@ import { requireAuth } from "../middlewares/auth.js";
 import User from "../models/user.js";
 import UserController from "../controllers/UserController.js";
 import upload from "../middlewares/cloudinaryUpload.js";
+import { claimReviewReward } from '../controllers/rewardController.js';
 
 const router = express.Router();
 
@@ -16,4 +17,5 @@ router.post(
   UserController.uploadUserAvatar
 );
 router.put('/password', requireAuth, UserController.changePassword);
+router.post('/claim-reward', requireAuth, claimReviewReward);
 export default router;

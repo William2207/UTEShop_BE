@@ -3,12 +3,12 @@ import User from "../models/user.js";
 
 export const requireAuth = async (req, res, next) => {
   try {
-    console.log('🔍 AUTH DEBUG - Headers:', req.headers.authorization);
+    //console.log('🔍 AUTH DEBUG - Headers:', req.headers.authorization);
 
     const header = req.headers.authorization || "";
     const token = header.startsWith("Bearer ") ? header.substring(7) : null;
 
-    console.log('🔍 AUTH DEBUG - Token extracted:', token ? 'Token exists' : 'No token');
+    //console.log('🔍 AUTH DEBUG - Token extracted:', token ? 'Token exists' : 'No token');
 
     if (!token) {
       return res.status(401).json({
@@ -19,7 +19,7 @@ export const requireAuth = async (req, res, next) => {
 
     // Verify token
     const decoded = verifyToken(token);
-    console.log('🔍 AUTH DEBUG - Decoded user:', decoded);
+    //console.log('🔍 AUTH DEBUG - Decoded user:', decoded);
 
     // Lấy thông tin user từ database để đảm bảo dữ liệu mới nhất
     const user = await User.findById(decoded._id || decoded.id).select('-password');
@@ -31,7 +31,7 @@ export const requireAuth = async (req, res, next) => {
       });
     }
 
-    console.log('✅ AUTH DEBUG - User found:', user._id);
+    //console.log('✅ AUTH DEBUG - User found:', user._id);
 
     // Gán user vào req
     req.user = user;
