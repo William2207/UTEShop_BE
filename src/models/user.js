@@ -27,6 +27,20 @@ const userSchema = new mongoose.Schema(
       type: Date,
       required: false,
     },
+    loyaltyPoints: {
+      balance: {
+        // Số điểm hiện có
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      tier: {
+        // (Nâng cao) Hạng thành viên (Vàng, Bạc, Đồng)
+        type: String,
+        enum: ["BRONZE", "SILVER", "GOLD"],
+        default: "BRONZE",
+      }
+    }
   },
   { timestamps: true }
 );

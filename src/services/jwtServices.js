@@ -28,11 +28,11 @@ export const verifyToken = (token) => {
   try {
     const secret = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
 
-    console.log('🔍 JWT Verify - Using secret:', secret ? 'Secret exists' : 'No secret');
-    console.log('🔍 JWT Verify - Token received:', token ? 'Token exists' : 'No token');
+    // console.log('🔍 JWT Verify - Using secret:', secret ? 'Secret exists' : 'No secret');
+    // console.log('🔍 JWT Verify - Token received:', token ? 'Token exists' : 'No token');
 
     const decoded = jwt.verify(token, secret);
-    console.log('✅ JWT Verify - Token decoded successfully:', decoded);
+    //console.log('✅ JWT Verify - Token decoded successfully:', decoded);
 
     return decoded;
   } catch (error) {
