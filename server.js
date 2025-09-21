@@ -72,6 +72,17 @@ app.use("/api/viewed-products", viewedProductRoutes);
 app.use("/api/similar-products", similarProductRoutes);
 app.use("/api/reviews", reviewRoutes);
 
+// Admin routes
+import voucherRoutes from "./src/routes/voucherRoutes.js";
+import pointsRoutes from "./src/routes/pointsRoutes.js";
+
+app.use("/api/admin/vouchers", voucherRoutes);
+app.use("/api/admin/points", pointsRoutes);
+
+// Customer voucher and points routes
+app.use("/api/vouchers", voucherRoutes);
+app.use("/api/points", pointsRoutes);
+
 
 /* ------------------------------- 404 & Err ------------------------------ */
 
