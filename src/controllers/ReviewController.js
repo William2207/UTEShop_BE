@@ -261,9 +261,43 @@ export const updateReview = async (req, res) => {
       return res.status(404).json({ message: "Review không tồn tại" });
     }
 
+    // Tính lại stats cho sản phẩm sau khi cập nhật review
+    const productObjectId = new mongoose.Types.ObjectId(review.product);
+    const stats = await Review.aggregate([
+      { $match: { product: productObjectId } },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$rating" },
+          totalReviews: { $sum: 1 },
+          ratingDistribution: {
+            $push: "$rating",
+          },
+        },
+      },
+    ]);
+
+    // Tính phân bố rating
+    const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    if (stats.length > 0 && stats[0].ratingDistribution) {
+      stats[0].ratingDistribution.forEach((rating) => {
+        ratingDistribution[rating]++;
+      });
+    }
+
+    const responseStats = {
+      averageRating:
+        stats.length > 0 ? Math.round(stats[0].averageRating * 10) / 10 : 0,
+      totalReviews: stats.length > 0 ? stats[0].totalReviews : 0,
+      ratingDistribution,
+    };
+
+    console.log("📊 Updated review stats after edit:", responseStats);
+
     res.json({
       message: "Cập nhật đánh giá thành công",
       review,
+      stats: responseStats,
     });
   } catch (error) {
     console.error("Error in updateReview:", error);
@@ -286,7 +320,43 @@ export const deleteReview = async (req, res) => {
       return res.status(404).json({ message: "Review không tồn tại" });
     }
 
-    res.json({ message: "Xóa đánh giá thành công" });
+    // Tính lại stats cho sản phẩm sau khi xóa review
+    const productObjectId = new mongoose.Types.ObjectId(review.product);
+    const stats = await Review.aggregate([
+      { $match: { product: productObjectId } },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$rating" },
+          totalReviews: { $sum: 1 },
+          ratingDistribution: {
+            $push: "$rating",
+          },
+        },
+      },
+    ]);
+
+    // Tính phân bố rating
+    const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    if (stats.length > 0 && stats[0].ratingDistribution) {
+      stats[0].ratingDistribution.forEach((rating) => {
+        ratingDistribution[rating]++;
+      });
+    }
+
+    const responseStats = {
+      averageRating:
+        stats.length > 0 ? Math.round(stats[0].averageRating * 10) / 10 : 0,
+      totalReviews: stats.length > 0 ? stats[0].totalReviews : 0,
+      ratingDistribution,
+    };
+
+    console.log("📊 Updated review stats after delete:", responseStats);
+
+    res.json({
+      message: "Xóa đánh giá thành công",
+      stats: responseStats,
+    });
   } catch (error) {
     console.error("Error in deleteReview:", error);
     res.status(500).json({ message: "Server error" });
@@ -321,11 +391,11 @@ export const checkOrderReviewed = async (req, res) => {
       hasReview: !!review,
       review: review
         ? {
-            _id: review._id,
-            rating: review.rating,
-            comment: review.comment,
-            createdAt: review.createdAt,
-          }
+          _id: review._id,
+          rating: review.rating,
+          comment: review.comment,
+          createdAt: review.createdAt,
+        }
         : null,
     });
   } catch (error) {

@@ -8,7 +8,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 export const getCart = asyncHandler(async (req, res) => {
   const cart = await Cart.findOne({ user: req.user._id }).populate({
     path: "items.product",
-    select: "name price images category brand stock",
+    select: "name price images category brand stock discountPercentage",
   });
 
   if (!cart) {
@@ -25,7 +25,11 @@ export const getCart = asyncHandler(async (req, res) => {
   // Tính tổng số lượng và tổng tiền
   const totalItems = cart.items.reduce((total, item) => total + item.quantity, 0);
   const totalAmount = cart.items.reduce((total, item) => {
-    return total + (item.product.price * item.quantity);
+    const itemPrice = item.product.price * item.quantity;
+    const discountAmount = item.product.discountPercentage > 0
+      ? itemPrice * item.product.discountPercentage / 100
+      : 0;
+    return total + (itemPrice - discountAmount);
   }, 0);
   const distinctItemCount = cart.items.length; // Số loại sản phẩm khác nhau
 
@@ -83,14 +87,14 @@ export const addToCart = asyncHandler(async (req, res) => {
     if (existingItemIndex > -1) {
       // Cập nhật số lượng nếu sản phẩm đã có
       const newQuantity = cart.items[existingItemIndex].quantity + quantity;
-      
+
       if (product.stock < newQuantity) {
         return res.status(400).json({
           success: false,
           message: `Chỉ còn ${product.stock} sản phẩm trong kho`,
         });
       }
-      
+
       cart.items[existingItemIndex].quantity = newQuantity;
       isNewProduct = false; // Sản phẩm đã có, chỉ tăng số lượng
     } else {
@@ -105,7 +109,7 @@ export const addToCart = asyncHandler(async (req, res) => {
   // Populate và trả về giỏ hàng đã cập nhật
   const updatedCart = await Cart.findOne({ user: req.user._id }).populate({
     path: "items.product",
-    select: "name price images category brand stock",
+    select: "name price images category brand stock discountPercentage",
   });
 
   const totalItems = updatedCart.items.reduce((total, item) => total + item.quantity, 0);
@@ -183,7 +187,7 @@ export const updateCartItem = asyncHandler(async (req, res) => {
 
   // Lưu lại số lượng cũ
   const oldQuantity = cart.items[itemIndex].quantity;
-  
+
   // Cập nhật số lượng
   cart.items[itemIndex].quantity = quantity;
 
@@ -192,7 +196,7 @@ export const updateCartItem = asyncHandler(async (req, res) => {
   // Populate và trả về giỏ hàng đã cập nhật
   const updatedCart = await Cart.findOne({ user: req.user._id }).populate({
     path: "items.product",
-    select: "name price images category brand stock",
+    select: "name price images category brand stock discountPercentage",
   });
 
   const totalItems = updatedCart.items.reduce((total, item) => total + item.quantity, 0);
@@ -248,7 +252,7 @@ export const removeFromCart = asyncHandler(async (req, res) => {
   // Populate và trả về giỏ hàng đã cập nhật
   const updatedCart = await Cart.findOne({ user: req.user._id }).populate({
     path: "items.product",
-    select: "name price images category brand stock",
+    select: "name price images category brand stock discountPercentage",
   });
 
   const totalItems = updatedCart.items.reduce((total, item) => total + item.quantity, 0);
@@ -292,7 +296,7 @@ export const clearCart = asyncHandler(async (req, res) => {
 // @access  Private
 export const getCartItemCount = asyncHandler(async (req, res) => {
   const cart = await Cart.findOne({ user: req.user._id });
-  
+
   const totalItems = cart ? cart.items.reduce((total, item) => total + item.quantity, 0) : 0;
   const distinctItemCount = cart ? cart.items.length : 0; // Số loại sản phẩm khác nhau
 
