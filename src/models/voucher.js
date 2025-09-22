@@ -41,14 +41,19 @@ const voucherSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-    maxUses: {
-      // Tổng số lần voucher có thể được sử dụng
+    maxIssued: {
+      // Tổng số voucher có thể được phát hành cho khách hàng
       type: Number,
       required: true,
       min: 1,
     },
     usesCount: {
-      // Số lần voucher đã được sử dụng
+      // Số lần voucher đã được sử dụng (thực sự áp dụng vào đơn hàng)
+      type: Number,
+      default: 0,
+    },
+    claimsCount: {
+      // Số lần voucher đã được claim (nhận từ reward)
       type: Number,
       default: 0,
     },
@@ -61,13 +66,20 @@ const voucherSchema = new mongoose.Schema(
     usersUsed: [
       {
         userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        count: { type: Number, default: 1 },
+        claimCount: { type: Number, default: 1 },  // Số lần nhận voucher
+        useCount: { type: Number, default: 0 }     // Số lần sử dụng voucher
       },
     ],
     isActive: {
       // Để admin có thể bật/tắt voucher thủ công
       type: Boolean,
       default: true,
+    },
+    rewardType: {
+      // Loại voucher: 'GENERAL' (chung), 'REVIEW' (phần thưởng đánh giá), 'FIRST_ORDER' (đơn hàng đầu tiên), etc.
+      type: String,
+      enum: ["GENERAL", "REVIEW", "FIRST_ORDER", "BIRTHDAY", "LOYALTY"],
+      default: "GENERAL",
     },
   },
   { timestamps: true }
@@ -76,9 +88,12 @@ const voucherSchema = new mongoose.Schema(
 // (Nâng cao) Thêm một virtual property để kiểm tra voucher còn hợp lệ không
 voucherSchema.virtual("isValid").get(function () {
   const now = new Date();
+  // Kiểm tra trạng thái voucher chỉ cần:
+  // 1. Voucher được kích hoạt
+  // 2. Trong khoảng thời gian hợp lệ
+  // KHÔNG kiểm tra claims < maxIssued vì voucher đã phát hành vẫn có thể hoạt động
   return (
     this.isActive &&
-    this.usesCount < this.maxUses &&
     now >= this.startDate &&
     now <= this.endDate
   );

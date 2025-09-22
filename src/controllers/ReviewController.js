@@ -120,13 +120,23 @@ export const createReview = async (req, res) => {
     await review.save();
     console.log("✅ Review saved successfully:", review);
 
-    // Điều kiện: voucher còn hoạt động, còn lượt sử dụng, và có thể là một loại voucher đặc biệt cho review
-    const randomVoucher = await Voucher.findOne({
+    // Tìm voucher dành riêng cho review trước
+    let reviewVoucher = await Voucher.findOne({
       isActive: true,
       endDate: { $gt: new Date() }, // Chưa hết hạn
       $expr: { $lt: ["$usesCount", "$maxUses"] }, // usesCount < maxUses
-      // (Tùy chọn) Thêm một trường đặc biệt, ví dụ: rewardType: 'REVIEW'
+      rewardType: 'REVIEW' // Ưu tiên voucher dành cho review
     });
+
+    // Nếu không có voucher review, tìm voucher chung
+    if (!reviewVoucher) {
+      reviewVoucher = await Voucher.findOne({
+        isActive: true,
+        endDate: { $gt: new Date() },
+        $expr: { $lt: ["$usesCount", "$maxUses"] },
+        rewardType: 'GENERAL'
+      });
+    }
 
     // 2. Định nghĩa phần thưởng điểm tích lũy
     const pointsReward = {
@@ -137,22 +147,20 @@ export const createReview = async (req, res) => {
 
     // 3. Tạo danh sách phần thưởng
     const availableRewards = [pointsReward];
-    if (randomVoucher) {
+    if (reviewVoucher) {
       availableRewards.push({
         type: "VOUCHER",
-        description: `Nhận voucher: ${randomVoucher.description}`,
-        voucherCode: randomVoucher.code, // Chỉ gửi mã code, không gửi toàn bộ object
+        description: `Nhận voucher: ${reviewVoucher.description}`,
+        voucherCode: reviewVoucher.code,
+        discountType: reviewVoucher.discountType,
+        discountValue: reviewVoucher.discountValue,
+        minOrderAmount: reviewVoucher.minOrderAmount,
+        endDate: reviewVoucher.endDate
       });
     }
 
     // Populate thông tin user
     await review.populate("user", "name avatarUrl");
-
-    // Debug: Check total reviews after creation
-    const totalReviews = await Review.countDocuments({
-      product: productObjectId,
-    });
-    console.log("📊 Total reviews for product now:", totalReviews);
 
     res.status(201).json({
       message: "Đánh giá thành công",

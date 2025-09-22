@@ -1,4 +1,5 @@
 import Voucher from "../models/voucher.js";
+import UserVoucher from "../models/userVoucher.js";
 import asyncHandler from "../utils/asyncHandler.js";
 
 // @desc    Get all vouchers (Admin only)
@@ -33,6 +34,42 @@ export const getAllVouchers = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(limit));
+    
+  // Auto-migrate: Add claimsCount field to vouchers that don't have it
+  // And sync claimsCount with actual UserVoucher records
+  // Also migrate maxUses to maxIssued
+  for (let voucher of vouchers) {
+    let needsSave = false;
+    
+    if (voucher.claimsCount === undefined) {
+      // Count actual claims from UserVoucher table
+      const actualClaimsCount = await UserVoucher.countDocuments({ 
+        voucher: voucher._id 
+      });
+      voucher.claimsCount = actualClaimsCount;
+      needsSave = true;
+    }
+    
+    // Migrate maxUses to maxIssued
+    if (voucher.maxUses !== undefined && (!voucher.maxIssued || voucher.maxIssued === null)) {
+      voucher.maxIssued = voucher.maxUses;
+      voucher.maxUses = undefined;
+      needsSave = true;
+    }
+    
+    
+    if (needsSave) {
+      await voucher.save();
+    }
+
+    // Tìm số lần nhận tối đa của 1 user
+    const maxUserClaims = voucher.usersUsed ? 
+      Math.max(...voucher.usersUsed.map(u => u.claimCount || 0), 0) : 
+      0;
+    
+    // Thêm thông tin về lượt nhận vào voucher
+    voucher._doc.maxUserClaims = maxUserClaims;
+  }
     
   const total = await Voucher.countDocuments(filter);
   
@@ -73,9 +110,10 @@ export const createVoucher = asyncHandler(async (req, res) => {
     minOrderAmount,
     startDate,
     endDate,
-    maxUses,
-    maxUsesPerUser,
-    isActive
+    maxIssued,
+    maxIssuedPerUser,
+    isActive,
+    rewardType
   } = req.body;
   
   // Check if voucher code already exists
@@ -106,9 +144,10 @@ export const createVoucher = asyncHandler(async (req, res) => {
     minOrderAmount: minOrderAmount || 0,
     startDate,
     endDate,
-    maxUses,
-    maxUsesPerUser: maxUsesPerUser || 1,
-    isActive: isActive !== undefined ? isActive : true
+    maxIssued,
+    maxIssuedPerUser: maxIssuedPerUser || 1,
+    isActive: isActive !== undefined ? isActive : true,
+    rewardType: rewardType || 'GENERAL'
   });
   
   res.status(201).json(voucher);
@@ -134,7 +173,7 @@ export const updateVoucher = asyncHandler(async (req, res) => {
     minOrderAmount,
     startDate,
     endDate,
-    maxUses,
+    maxIssued,
     maxUsesPerUser,
     isActive
   } = req.body;
@@ -176,7 +215,7 @@ export const updateVoucher = asyncHandler(async (req, res) => {
   voucher.minOrderAmount = minOrderAmount !== undefined ? minOrderAmount : voucher.minOrderAmount;
   voucher.startDate = startDate || voucher.startDate;
   voucher.endDate = endDate || voucher.endDate;
-  voucher.maxUses = maxUses !== undefined ? maxUses : voucher.maxUses;
+  voucher.maxIssued = maxIssued !== undefined ? maxIssued : voucher.maxIssued;
   voucher.maxUsesPerUser = maxUsesPerUser !== undefined ? maxUsesPerUser : voucher.maxUsesPerUser;
   voucher.isActive = isActive !== undefined ? isActive : voucher.isActive;
   
@@ -236,10 +275,10 @@ export const validateVoucher = asyncHandler(async (req, res) => {
     throw new Error('Voucher is not valid at this time');
   }
   
-  // Check if voucher has remaining uses
-  if (voucher.usesCount >= voucher.maxUses) {
+  // Check if voucher has remaining issuing slots
+  if (voucher.claimsCount >= voucher.maxIssued) {
     res.status(400);
-    throw new Error('Voucher has reached maximum usage limit');
+    throw new Error('Voucher has reached maximum issuance limit');
   }
   
   // Check minimum order amount
@@ -251,7 +290,7 @@ export const validateVoucher = asyncHandler(async (req, res) => {
   // Check user usage limit
   if (userId) {
     const userUsage = voucher.usersUsed.find(u => u.userId.toString() === userId);
-    if (userUsage && userUsage.count >= voucher.maxUsesPerUser) {
+    if (userUsage && userUsage.count >= voucher.maxIssuedPerUser) {
       res.status(400);
       throw new Error('You have reached the maximum usage limit for this voucher');
     }
@@ -319,7 +358,8 @@ export const applyVoucher = asyncHandler(async (req, res) => {
     voucher: {
       code: voucher.code,
       usesCount: voucher.usesCount,
-      maxUses: voucher.maxUses
+      claimsCount: voucher.claimsCount,
+      maxIssued: voucher.maxIssued
     }
   });
 });
@@ -339,9 +379,9 @@ export const getVoucherStats = asyncHandler(async (req, res) => {
   ]);
   
   const topVouchers = await Voucher.find()
-    .sort({ usesCount: -1 })
+    .sort({ claimsCount: -1 })
     .limit(5)
-    .select('code description usesCount maxUses discountType discountValue');
+    .select('code description usesCount claimsCount maxIssued discountType discountValue');
   
   res.json({
     overview: {
