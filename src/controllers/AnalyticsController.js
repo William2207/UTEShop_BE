@@ -294,17 +294,24 @@ class AnalyticsController {
         });
     });
 
-    // Top 10 sản phẩm bán chạy nhất
+    // Top sản phẩm bán chạy nhất - dựa vào soldCount
     getTopProducts = asyncHandler(async (req, res) => {
         const { limit = 10 } = req.query;
 
-        const topProducts = await Product.find()
+        // Đơn giản: Lấy sản phẩm theo soldCount (số lượng đã bán)
+        const topProducts = await Product.find({ soldCount: { $gt: 0 } })
             .populate("category", "name")
             .populate("brand", "name")
-            .sort({ soldCount: -1 })
+            .sort({ soldCount: -1 }) // Sắp xếp theo số lượng bán giảm dần
             .limit(parseInt(limit));
 
-        // Tính tổng doanh thu cho mỗi sản phẩm từ các đơn hàng đã giao
+        console.log('🔍 DEBUG - Top products by soldCount:', topProducts.slice(0, 5).map(p => ({
+            name: p.name,
+            soldCount: p.soldCount,
+            stock: p.stock
+        })));
+
+        // Tính doanh thu từ đơn hàng đã giao (để hiển thị thêm thông tin)
         const productsWithRevenue = await Promise.all(
             topProducts.map(async (product) => {
                 const revenueResult = await Order.aggregate([
@@ -315,13 +322,13 @@ class AnalyticsController {
                         $group: {
                             _id: "$items.product",
                             totalRevenue: { $sum: { $multiply: ["$items.price", "$items.quantity"] } },
-                            totalSold: { $sum: "$items.quantity" }
+                            deliveredQuantity: { $sum: "$items.quantity" }
                         }
                     }
                 ]);
 
                 const revenue = revenueResult[0]?.totalRevenue || 0;
-                const soldFromOrders = revenueResult[0]?.totalSold || 0;
+                const deliveredQuantity = revenueResult[0]?.deliveredQuantity || 0;
 
                 // Calculate discounted price
                 const discountedPrice = product.price - (product.price * product.discountPercentage / 100);
@@ -331,21 +338,27 @@ class AnalyticsController {
                     name: product.name,
                     originalPrice: product.price,
                     discountedPrice: discountedPrice,
-                    price: discountedPrice, // For backward compatibility
-                    soldCount: product.soldCount,
-                    soldFromOrders, // Số lượng bán từ đơn đã giao
+                    price: discountedPrice,
+                    soldCount: product.soldCount, // Số lượng đã bán (từ database)
+                    sold: product.soldCount, // Dùng soldCount làm sold để đồng nhất
+                    deliveredQuantity, // Số lượng đã giao thực tế
                     revenue,
-                    category: product.category.name,
-                    brand: product.brand.name,
+                    category: product.category?.name || 'Không có danh mục',
+                    brand: product.brand?.name || 'Không có thương hiệu',
                     images: product.images,
                     discountPercentage: product.discountPercentage,
-                    stock: product.stock
+                    stock: product.stock,
+                    color: this.getRandomGradient()
                 };
             })
         );
 
-        // Sắp xếp lại theo doanh thu
-        productsWithRevenue.sort((a, b) => b.revenue - a.revenue);
+        console.log('🔍 DEBUG - Final products with revenue:', productsWithRevenue.slice(0, 3).map(p => ({
+            name: p.name,
+            soldCount: p.soldCount,
+            deliveredQuantity: p.deliveredQuantity,
+            revenue: p.revenue
+        })));
 
         res.status(200).json({
             success: true,
@@ -353,6 +366,19 @@ class AnalyticsController {
             limit: parseInt(limit)
         });
     });
+
+    // Helper function để tạo màu gradient ngẫu nhiên
+    getRandomGradient = () => {
+        const gradients = [
+            'from-purple-400 to-pink-400',
+            'from-blue-400 to-purple-400',
+            'from-green-400 to-blue-400',
+            'from-yellow-400 to-orange-400',
+            'from-pink-400 to-red-400',
+            'from-indigo-400 to-purple-400'
+        ];
+        return gradients[Math.floor(Math.random() * gradients.length)];
+    };
 
     // Thống kê tổng hợp dashboard
     getDashboardStats = asyncHandler(async (req, res) => {
