@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import User from "./src/models/user.js";
 
-const MONGO_URI = "mongodb://127.0.0.1:27017/fashion_store";
+const MONGO_URI = "mongodb://127.0.0.1:27017/shop";
 
 async function seedAdmin() {
     try {
@@ -10,7 +10,7 @@ async function seedAdmin() {
 
         // Kiểm tra xem admin đã tồn tại chưa
         const existingAdmin = await User.findOne({ email: "admin@uteshop.com" });
-        
+
         if (existingAdmin) {
             console.log("⚠️ Tài khoản admin đã tồn tại!");
             console.log("📧 Email: admin@uteshop.com");

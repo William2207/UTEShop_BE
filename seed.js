@@ -32,14 +32,14 @@ async function seed() {
             {
                 name: "Nike",
                 description: "Just Do It - Thương hiệu thể thao hàng đầu thế giới",
-                logo: "https://picsum.photos/100/100?random=101",
+                logo: "https://res.cloudinary.com/dx8ffnhq3/image/upload/v1758644567/nike_ugwwyj.jpg",
                 website: "https://nike.com",
                 country: "USA"
             },
             {
                 name: "Adidas",
                 description: "Impossible is Nothing - Ba sọc kinh điển",
-                logo: "https://picsum.photos/100/100?random=102",
+                logo: "https://res.cloudinary.com/dx8ffnhq3/image/upload/v1758644566/adias_w6vvfu.png",
                 website: "https://adidas.com",
                 country: "Germany"
             },
@@ -47,21 +47,21 @@ async function seed() {
             {
                 name: "Zara",
                 description: "Fast fashion từ Tây Ban Nha",
-                logo: "https://picsum.photos/100/100?random=104",
+                logo: "https://res.cloudinary.com/dx8ffnhq3/image/upload/v1758644566/zara_jv1myp.png",
                 website: "https://zara.com",
                 country: "Spain"
             },
             {
                 name: "H&M",
                 description: "Fashion for everyone từ Thụy Điển",
-                logo: "https://picsum.photos/100/100?random=105",
+                logo: "https://res.cloudinary.com/dx8ffnhq3/image/upload/v1758644567/hm_ygxvj8.png",
                 website: "https://hm.com",
                 country: "Sweden"
             },
             {
                 name: "Louis Vuitton",
                 description: "Thương hiệu xa xỉ từ Pháp",
-                logo: "https://picsum.photos/100/100?random=106",
+                logo: "https://res.cloudinary.com/dx8ffnhq3/image/upload/v1758644567/lv_gwcmsx.png",
                 website: "https://louisvuitton.com",
                 country: "France"
             },
