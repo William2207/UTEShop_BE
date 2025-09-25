@@ -17,11 +17,13 @@ const sampleVouchers = [
     minOrderAmount: 200000,
     startDate: new Date("2024-01-01"),
     endDate: new Date("2024-12-31"),
-    maxUses: 1000,
+    maxIssued: 1000,
     usesCount: 245,
+    claimsCount: 245,
     maxUsesPerUser: 1,
     usersUsed: [],
     isActive: true,
+    rewardType: "GENERAL",
   },
 
   // Voucher giảm giá cố định
@@ -33,11 +35,13 @@ const sampleVouchers = [
     minOrderAmount: 500000,
     startDate: new Date("2024-03-01"),
     endDate: new Date("2024-03-31"),
-    maxUses: 500,
+    maxIssued: 500,
     usesCount: 123,
+    claimsCount: 123,
     maxUsesPerUser: 2,
     usersUsed: [],
     isActive: true,
+    rewardType: "GENERAL",
   },
 
   // Voucher miễn phí ship
@@ -49,11 +53,13 @@ const sampleVouchers = [
     minOrderAmount: 200000,
     startDate: new Date("2024-02-01"),
     endDate: new Date("2024-04-30"),
-    maxUses: 2000,
+    maxIssued: 2000,
     usesCount: 1567,
+    claimsCount: 1567,
     maxUsesPerUser: 5,
     usersUsed: [],
     isActive: true,
+    rewardType: "GENERAL",
   },
 
   // Voucher sale lớn
@@ -66,11 +72,13 @@ const sampleVouchers = [
     minOrderAmount: 1000000,
     startDate: new Date("2024-03-15"),
     endDate: new Date("2024-03-25"),
-    maxUses: 100,
+    maxIssued: 100,
     usesCount: 89,
+    claimsCount: 89,
     maxUsesPerUser: 1,
     usersUsed: [],
     isActive: true,
+    rewardType: "GENERAL",
   },
 
   // Voucher VIP
@@ -82,11 +90,13 @@ const sampleVouchers = [
     minOrderAmount: 2000000,
     startDate: new Date("2024-01-01"),
     endDate: new Date("2024-12-31"),
-    maxUses: 50,
+    maxIssued: 50,
     usesCount: 12,
+    claimsCount: 12,
     maxUsesPerUser: 3,
     usersUsed: [],
     isActive: true,
+    rewardType: "GENERAL",
   },
 
   // Voucher cuối tuần
@@ -99,11 +109,13 @@ const sampleVouchers = [
     minOrderAmount: 300000,
     startDate: new Date("2024-03-01"),
     endDate: new Date("2024-06-30"),
-    maxUses: 300,
+    maxIssued: 300,
     usesCount: 78,
+    claimsCount: 78,
     maxUsesPerUser: 2,
     usersUsed: [],
     isActive: true,
+    rewardType: "GENERAL",
   },
 
   // Voucher sinh nhật
@@ -116,11 +128,13 @@ const sampleVouchers = [
     minOrderAmount: 500000,
     startDate: new Date("2024-01-01"),
     endDate: new Date("2024-12-31"),
-    maxUses: 200,
+    maxIssued: 200,
     usesCount: 45,
+    claimsCount: 45,
     maxUsesPerUser: 1,
     usersUsed: [],
     isActive: true,
+    rewardType: "BIRTHDAY",
   },
 
   // Voucher flash sale
@@ -132,28 +146,32 @@ const sampleVouchers = [
     minOrderAmount: 200000,
     startDate: new Date(),
     endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 ngày từ bây giờ
-    maxUses: 100,
+    maxIssued: 100,
     usesCount: 23,
+    claimsCount: 23,
     maxUsesPerUser: 1,
     usersUsed: [],
     isActive: true,
+    rewardType: "GENERAL",
   },
 
-  // Voucher đã hết hạn (để test)
+  // Voucher phần thưởng đánh giá
   {
-    code: "EXPIRED10",
-    description: "Voucher giảm 10% - Đã hết hạn",
+    code: "REVIEW15",
+    description: "Cảm ơn bạn đã đánh giá - Giảm 15%",
     discountType: "PERCENTAGE",
-    discountValue: 10,
-    maxDiscountAmount: 50000,
-    minOrderAmount: 100000,
+    discountValue: 15,
+    maxDiscountAmount: 200000,
+    minOrderAmount: 200000,
     startDate: new Date("2024-01-01"),
-    endDate: new Date("2024-01-31"),
-    maxUses: 500,
-    usesCount: 456,
-    maxUsesPerUser: 2,
+    endDate: new Date("2025-12-31"), // Còn hạn lâu
+    maxIssued: 1000,
+    usesCount: 0,
+    claimsCount: 0,
+    maxUsesPerUser: 1,
     usersUsed: [],
-    isActive: false,
+    isActive: true,
+    rewardType: "REVIEW", // Dành cho reward đánh giá
   },
 
   // Voucher đã hết lượt (để test)
@@ -166,11 +184,13 @@ const sampleVouchers = [
     minOrderAmount: 300000,
     startDate: new Date("2024-02-01"),
     endDate: new Date("2024-06-30"),
-    maxUses: 200,
+    maxIssued: 200,
     usesCount: 200,
+    claimsCount: 200,
     maxUsesPerUser: 1,
     usersUsed: [],
     isActive: true,
+    rewardType: "GENERAL",
   },
 ];
 
@@ -178,7 +198,10 @@ const sampleVouchers = [
 const connectDB = async () => {
   try {
     const mongoURI = process.env.MONGO_URI;
-    await mongoose.connect(mongoURI);
+    await mongoose.connect(mongoURI, {
+      serverSelectionTimeoutMS: 5000,
+      family: 4, // ép IPv4, tránh ::1
+    });
     console.log("✅ Kết nối MongoDB thành công!");
   } catch (error) {
     console.error("❌ Lỗi kết nối MongoDB:", error.message);

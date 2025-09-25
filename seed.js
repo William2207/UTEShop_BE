@@ -10,12 +10,6 @@ async function seed() {
         await mongoose.connect(MONGO_URI);
         console.log("✅ Kết nối MongoDB thành công!");
 
-        // Xóa dữ liệu cũ
-        await Product.deleteMany();
-        await Category.deleteMany();
-        await Brand.deleteMany();
-        console.log("🗑️ Đã xoá dữ liệu cũ!");
-
         // Tạo categories
         const categories = await Category.insertMany([
             { name: "Áo", description: "Các loại áo thun, sơ mi, hoodie" },

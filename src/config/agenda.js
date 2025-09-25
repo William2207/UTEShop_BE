@@ -2,15 +2,28 @@
 import { Agenda } from 'agenda';
 import Order from '../models/order.js';
 
-const mongoConnectionString = process.env.MONGO_URI 
+const mongoConnectionString = process.env.MONGO_URI;
+
 const agenda = new Agenda({ 
   db: { 
     address: mongoConnectionString,
     options: {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 30000, // Tăng timeout lên 30s
+      socketTimeoutMS: 30000,
+      connectTimeoutMS: 30000,
       family: 4, // Force IPv4 để tránh lỗi ::1
     }
   } 
+});
+
+// Xử lý lỗi connection cho Agenda
+agenda.on('ready', () => {
+  console.log('✅ Agenda connected to MongoDB');
+});
+
+agenda.on('error', (error) => {
+  console.error('❌ Agenda connection error:', error.message);
+  // Không exit process, chỉ log lỗi
 });
 
 // Định nghĩa logic cho một job có tên là 'process pending order'

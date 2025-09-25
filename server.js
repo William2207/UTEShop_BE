@@ -108,9 +108,17 @@ const PORT = Number(process.env.PORT) || 5000;
 const serverStart = async () => {
   try {
     await connectDB(); // chỉ start server sau khi DB OK
-    await agenda.start();
+    
+    // Start agenda với error handling
+    try {
+      await agenda.start();
+      console.log("✅ Agenda started successfully.");
+    } catch (agendaError) {
+      console.warn("⚠️  Agenda failed to start, but server will continue:", agendaError.message);
+      // Server vẫn tiếp tục chạy ngay cả khi Agenda lỗi
+    }
+    
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-    console.log("Agenda started.");
   } catch (e) {
     console.error("❌ Failed to start server:", e);
     process.exit(1);

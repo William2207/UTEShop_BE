@@ -135,6 +135,12 @@ export const createVoucher = asyncHandler(async (req, res) => {
     throw new Error('Percentage discount must be between 1 and 100');
   }
   
+  // Tự động tính isActive dựa trên thời gian
+  const now = new Date();
+  const voucherStartDate = new Date(startDate);
+  const voucherEndDate = new Date(endDate);
+  const isTimeValid = now >= voucherStartDate && now <= voucherEndDate;
+
   const voucher = await Voucher.create({
     code: code.toUpperCase(),
     description,
@@ -146,8 +152,16 @@ export const createVoucher = asyncHandler(async (req, res) => {
     endDate,
     maxIssued,
     maxIssuedPerUser: maxIssuedPerUser || 1,
-    isActive: isActive !== undefined ? isActive : true,
+    isActive: isTimeValid, // Tự động dựa trên thời gian
     rewardType: rewardType || 'GENERAL'
+  });
+
+  console.log('✅ Created voucher with auto status:', {
+    code: voucher.code,
+    isActive: voucher.isActive,
+    timeValid: isTimeValid,
+    startDate: voucher.startDate,
+    endDate: voucher.endDate
   });
   
   res.status(201).json(voucher);
@@ -157,12 +171,23 @@ export const createVoucher = asyncHandler(async (req, res) => {
 // @route   PUT /api/admin/vouchers/:id
 // @access  Private/Admin
 export const updateVoucher = asyncHandler(async (req, res) => {
+  console.log('🔄 Updating voucher with ID:', req.params.id);
+  console.log('🔍 Request body:', req.body);
+  
   const voucher = await Voucher.findById(req.params.id);
   
   if (!voucher) {
     res.status(404);
     throw new Error('Voucher not found');
   }
+  
+  console.log('📋 Current voucher before update:', {
+    code: voucher.code,
+    rewardType: voucher.rewardType,
+    isActive: voucher.isActive,
+    startDate: voucher.startDate,
+    endDate: voucher.endDate
+  });
   
   const {
     code,
@@ -175,7 +200,8 @@ export const updateVoucher = asyncHandler(async (req, res) => {
     endDate,
     maxIssued,
     maxUsesPerUser,
-    isActive
+    isActive,
+    rewardType
   } = req.body;
   
   // Check if code is being changed and if new code already exists
@@ -217,9 +243,29 @@ export const updateVoucher = asyncHandler(async (req, res) => {
   voucher.endDate = endDate || voucher.endDate;
   voucher.maxIssued = maxIssued !== undefined ? maxIssued : voucher.maxIssued;
   voucher.maxUsesPerUser = maxUsesPerUser !== undefined ? maxUsesPerUser : voucher.maxUsesPerUser;
-  voucher.isActive = isActive !== undefined ? isActive : voucher.isActive;
+  voucher.rewardType = rewardType || voucher.rewardType;
+  
+  // Tự động cập nhật isActive dựa trên thời gian
+  const now = new Date();
+  const voucherStartDate = new Date(voucher.startDate);
+  const voucherEndDate = new Date(voucher.endDate);
+  const isTimeValid = now >= voucherStartDate && now <= voucherEndDate;
+  
+  // isActive sẽ được cập nhật tự động dựa trên thời gian
+  voucher.isActive = isTimeValid;
+  
+  console.log('📝 Voucher after field updates:', {
+    code: voucher.code,
+    rewardType: voucher.rewardType,
+    isActive: voucher.isActive,
+    startDate: voucher.startDate,
+    endDate: voucher.endDate,
+    timeValid: isTimeValid
+  });
   
   const updatedVoucher = await voucher.save();
+  console.log('✅ Voucher saved to database:', updatedVoucher._id);
+  
   res.json(updatedVoucher);
 });
 

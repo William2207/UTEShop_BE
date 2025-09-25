@@ -9,7 +9,13 @@ export const claimReviewReward = async (req, res) => {
   // Frontend sẽ gửi lên: { rewardType: 'VOUCHER', voucherCode: '...' } hoặc { rewardType: 'POINTS', value: 100 }
   const { rewardType, voucherCode, value } = req.body;
   
-  console.log("🎯 claimReviewReward called:", { userId, rewardType, voucherCode, value });
+  console.log("🎯 claimReviewReward called with full details:");
+  console.log("   - userId:", userId);
+  console.log("   - rewardType:", rewardType);
+  console.log("   - voucherCode:", voucherCode);
+  console.log("   - value:", value);
+  console.log("   - req.body:", JSON.stringify(req.body, null, 2));
+  console.log("   - req.user:", req.user?.email || 'No email');
 
   try {
     const user = await User.findById(userId);
@@ -21,25 +27,56 @@ export const claimReviewReward = async (req, res) => {
 
       // Tìm voucher
       const voucher = await Voucher.findOne({ code: voucherCode });
+      console.log('🔍 Found voucher for claim:', voucher ? voucher.code : 'Not found');
+      
       if (!voucher) {
         return res.status(404).json({ message: "Voucher không tồn tại." });
       }
 
+      console.log('📊 Voucher details:', {
+        code: voucher.code,
+        claimsCount: voucher.claimsCount || 0,
+        maxIssued: voucher.maxIssued,
+        isActive: voucher.isActive,
+        rewardType: voucher.rewardType
+      });
+
       // Kiểm tra voucher có còn khả dụng để phát hành không
-      if (voucher.claimsCount >= voucher.maxIssued) {
+      const currentClaims = voucher.claimsCount || 0;
+      if (currentClaims >= voucher.maxIssued) {
         return res.status(400).json({ 
           message: `Voucher ${voucherCode} đã hết lượt phát hành.` 
         });
       }
 
-      // Kiểm tra user đã claim voucher này chưa
+      // KIỂM TRA SỐ LẦN USER ĐÃ CLAIM VOUCHER NÀY (dùng UserVoucher collection - đáng tin cậy)
+      const userClaimCount = await UserVoucher.countDocuments({
+        user: userId,
+        voucherCode: voucher.code
+      });
+      
+      const maxAllowed = voucher.maxUsesPerUser || 1;
+      
+      console.log(`🔍 Claim validation: ${voucher.code}`);
+      console.log(`   - User đã nhận (từ UserVoucher DB): ${userClaimCount}/${maxAllowed} lần`);
+      console.log(`   - Có thể nhận thêm: ${userClaimCount < maxAllowed}`);
+
+      if (userClaimCount >= maxAllowed) {
+        return res.status(400).json({ 
+          message: `Bạn đã nhận đủ ${maxAllowed} lần voucher ${voucher.code}. Không thể nhận thêm.`,
+          userClaims: userClaimCount,
+          maxAllowed: maxAllowed
+        });
+      }
+
+      // Cập nhật voucher.usersUsed array cho tracking
       const userUsedIndex = voucher.usersUsed.findIndex(
         u => u.userId.toString() === userId
       );
 
       if (userUsedIndex > -1) {
         // User đã từng nhận voucher này
-        voucher.usersUsed[userUsedIndex].claimCount += 1;
+        voucher.usersUsed[userUsedIndex].claimCount = (voucher.usersUsed[userUsedIndex].claimCount || 0) + 1;
       } else {
         // User chưa từng nhận voucher này
         voucher.usersUsed.push({ 
@@ -49,15 +86,52 @@ export const claimReviewReward = async (req, res) => {
         });
       }
 
-      // Tạo bản ghi UserVoucher
+      // 1. Tạo bản ghi UserVoucher (chi tiết)
       console.log("📝 Creating UserVoucher record...");
-      const userVoucher = await UserVoucher.create({
-        user: userId,
-        voucher: voucher._id,
-        voucherCode: voucher.code,
-        source: "REVIEW"
-      });
-      console.log("✅ UserVoucher created:", userVoucher._id);
+      let userVoucher;
+      try {
+        userVoucher = await UserVoucher.create({
+          user: userId,
+          voucher: voucher._id,
+          voucherCode: voucher.code,
+          source: "REVIEW"
+        });
+        console.log("✅ UserVoucher created successfully:", userVoucher._id);
+      } catch (userVoucherError) {
+        console.error("❌ Error creating UserVoucher:", userVoucherError.message);
+        return res.status(500).json({ 
+          message: "Lỗi khi lưu voucher vào tài khoản", 
+          error: userVoucherError.message 
+        });
+      }
+
+      // 2. Cập nhật User.voucherClaims (tracking nhanh)
+      console.log("📈 Updating User.voucherClaims tracking...");
+      try {
+        const existingClaimIndex = user.voucherClaims.findIndex(
+          claim => claim.voucherCode === voucher.code
+        );
+
+        if (existingClaimIndex > -1) {
+          // Tăng count cho voucher đã có
+          user.voucherClaims[existingClaimIndex].claimCount += 1;
+          user.voucherClaims[existingClaimIndex].lastClaimed = new Date();
+        } else {
+          // Thêm voucher mới
+          user.voucherClaims.push({
+            voucherCode: voucher.code,
+            claimCount: 1,
+            lastClaimed: new Date(),
+            source: "REVIEW"
+          });
+        }
+
+        await user.save();
+        console.log("✅ User voucherClaims updated successfully");
+      } catch (trackingError) {
+        console.error("⚠️  Warning: Failed to update user tracking:", trackingError.message);
+        // Không return error vì UserVoucher đã lưu thành công
+      }
 
       // Cập nhật số lần voucher được claim
       console.log(`🎯 Before claim: ${voucher.code} claimsCount=${voucher.claimsCount || 0}`);
@@ -105,8 +179,16 @@ export const claimReviewReward = async (req, res) => {
         .json({ message: "Loại phần thưởng không hợp lệ." });
     }
   } catch (error) {
-    console.error("Error claiming reward:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("❌ ERROR in claimReviewReward:");
+    console.error("   - Message:", error.message);
+    console.error("   - Stack:", error.stack);
+    console.error("   - Full error:", error);
+    
+    const errorMessage = error.message || "Server error";
+    res.status(500).json({ 
+      message: `Lỗi khi nhận thưởng: ${errorMessage}`,
+      error: errorMessage 
+    });
   }
 };
 

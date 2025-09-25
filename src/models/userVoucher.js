@@ -44,8 +44,8 @@ const userVoucherSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Compound index để đảm bảo user không claim cùng voucher nhiều lần
-userVoucherSchema.index({ user: 1, voucher: 1 }, { unique: true });
+// Index để query nhanh - KHÔNG unique để cho phép claim nhiều lần
+userVoucherSchema.index({ user: 1, voucher: 1 });
 
 // Index để query nhanh
 userVoucherSchema.index({ user: 1, isUsed: 1 });
