@@ -84,5 +84,25 @@ export const optionalAuth = async (req, res, next) => {
   }
 };
 
+// Middleware để kiểm tra authentication (alias cho requireAuth)
+export const protect = requireAuth;
+
+// Middleware để kiểm tra quyền admin
+export const admin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      message: 'Unauthorized - Authentication required' 
+    });
+  }
+  
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ 
+      message: 'Forbidden - Admin access required' 
+    });
+  }
+  
+  next();
+};
+
 // Alias export for compatibility
 export const authMiddleware = requireAuth;
