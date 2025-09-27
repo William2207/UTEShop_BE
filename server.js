@@ -3,7 +3,9 @@ import "dotenv/config"; // nạp .env sớm nhất
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import agenda from "./src/config/agenda.js";
+import { initializeAgenda } from "./src/config/agenda.js";
+import http from 'http'; 
+import { initializeSocket, sendNotificationToUser } from './src/config/socket.js'; // Import từ file socket
 
 // Modules của bạn
 import connectDB from "./src/config/db.js";
@@ -27,6 +29,17 @@ import similarProductRoutes from "./src/routes/similarProductRoutes.js";
 import reviewRoutes from "./src/routes/reviewRoutes.js";
 
 const app = express();
+const httpServer = http.createServer(app);
+
+// Khởi tạo Socket.IO
+const io = initializeSocket(httpServer);
+
+const agenda = initializeAgenda(io, sendNotificationToUser);
+
+// Gán `io` và `sendNotificationToUser` vào `app.locals` để các controller có thể truy cập
+app.locals.io = io;
+app.locals.sendNotificationToUser = sendNotificationToUser;
+app.locals.agenda = agenda;
 
 /* ----------------------------- Middlewares ------------------------------ */
 
@@ -117,7 +130,7 @@ const serverStart = async () => {
   try {
     await connectDB(); // chỉ start server sau khi DB OK
     await agenda.start();
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
     console.log("Agenda started.");
   } catch (e) {
     console.error("❌ Failed to start server:", e);

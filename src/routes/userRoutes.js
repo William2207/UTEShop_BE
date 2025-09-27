@@ -4,7 +4,7 @@ import User from "../models/user.js";
 import UserController from "../controllers/UserController.js";
 import upload from "../middlewares/cloudinaryUpload.js";
 import { claimReviewReward } from '../controllers/rewardController.js';
-
+import { getNotifications, markNotificationsAsRead } from '../controllers/notificationController.js';
 const router = express.Router();
 
 // Route lấy profile (protected, cần token)
@@ -18,4 +18,6 @@ router.post(
 );
 router.put('/password', requireAuth, UserController.changePassword);
 router.post('/claim-reward', requireAuth, claimReviewReward);
+router.get('/notifications', requireAuth, getNotifications);
+router.post('/notifications/mark-read', requireAuth, markNotificationsAsRead);
 export default router;
