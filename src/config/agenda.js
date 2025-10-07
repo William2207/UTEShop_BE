@@ -48,33 +48,5 @@ export const initializeAgenda = (io, sendNotificationToUser) => {
         }
     });
 
-const mongoConnectionString = process.env.MONGO_URI 
-// Hàm này sẽ được gọi từ server.js
-export const initializeAgenda = (io, sendNotificationToUser) => {
-    const agenda = new Agenda({ db: { address: mongoConnectionString } });
-
-    /**
-     * Định nghĩa logic cho job 'process pending order'.
-     * Bây giờ nó có thể truy cập vào `sendNotificationToUser`.
-     */
-    agenda.define('process pending order', async (job) => {
-        const { orderId } = job.attrs.data;
-        console.log(`Processing job for orderId: ${orderId}`);
-        
-        const order = await Order.findById(orderId);
-        
-        if (order && order.status === 'pending') {
-            order.status = 'processing';
-            await order.save();
-            console.log(`✅ Order ${orderId} status updated to processing.`);
-            const userId = order.user;
-            sendNotificationToUser(io, userId, 'order_status_update', {
-                orderId: order._id,
-                newStatus: 'processing',
-                message: `Đơn hàng #${order._id} của bạn đã bắt đầu được xử lý.`
-            });
-        }
-    });
-
     return agenda;
 };

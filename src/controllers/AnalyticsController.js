@@ -217,9 +217,6 @@ class AnalyticsController {
                     return `${item.product.name} x${item.quantity}`;
                 })
                 .join(', '),
-            customer: order.user.name,
-            customerEmail: order.user.email,
-            products: order.items.map(item => `${item.product.name} x${item.quantity}`).join(', '),
             totalProducts: order.items.reduce((sum, item) => sum + item.quantity, 0),
             total: order.totalPrice,
             paymentMethod: order.paymentMethod,

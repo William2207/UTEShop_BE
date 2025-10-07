@@ -140,9 +140,6 @@ const serverStart = async () => {
     }
     
     httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-    await agenda.start();
-    httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-    console.log("Agenda started.");
   } catch (e) {
     console.error("❌ Failed to start server:", e);
     process.exit(1);
