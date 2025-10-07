@@ -8,7 +8,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 export const getCart = asyncHandler(async (req, res) => {
   const cart = await Cart.findOne({ user: req.user._id }).populate({
     path: "items.product",
-    select: "name price images category brand stock",
+    select: "name price images category brand stock discountPercentage",
   });
 
   if (!cart) {
@@ -22,10 +22,10 @@ export const getCart = asyncHandler(async (req, res) => {
     });
   }
 
-  // Lọc bỏ các sản phẩm đã bị xóa (product = null)
+  // Lọc ra những sản phẩm không tồn tại (đã bị xóa)
   const validItems = cart.items.filter(item => item.product !== null);
-  
-  // Nếu có sản phẩm bị xóa, cập nhật lại giỏ hàng
+
+  // Nếu có sản phẩm không tồn tại, cập nhật lại giỏ hàng
   if (validItems.length !== cart.items.length) {
     cart.items = validItems;
     await cart.save();
@@ -34,7 +34,11 @@ export const getCart = asyncHandler(async (req, res) => {
   // Tính tổng số lượng và tổng tiền
   const totalItems = validItems.reduce((total, item) => total + item.quantity, 0);
   const totalAmount = validItems.reduce((total, item) => {
-    return total + (item.product.price * item.quantity);
+    const itemPrice = item.product.price * item.quantity;
+    const discountAmount = item.product.discountPercentage > 0
+      ? itemPrice * item.product.discountPercentage / 100
+      : 0;
+    return total + (itemPrice - discountAmount);
   }, 0);
   const distinctItemCount = validItems.length; // Số loại sản phẩm khác nhau
 
@@ -92,14 +96,14 @@ export const addToCart = asyncHandler(async (req, res) => {
     if (existingItemIndex > -1) {
       // Cập nhật số lượng nếu sản phẩm đã có
       const newQuantity = cart.items[existingItemIndex].quantity + quantity;
-      
+
       if (product.stock < newQuantity) {
         return res.status(400).json({
           success: false,
           message: `Chỉ còn ${product.stock} sản phẩm trong kho`,
         });
       }
-      
+
       cart.items[existingItemIndex].quantity = newQuantity;
       isNewProduct = false; // Sản phẩm đã có, chỉ tăng số lượng
     } else {
@@ -114,17 +118,11 @@ export const addToCart = asyncHandler(async (req, res) => {
   // Populate và trả về giỏ hàng đã cập nhật
   const updatedCart = await Cart.findOne({ user: req.user._id }).populate({
     path: "items.product",
-    select: "name price images category brand stock",
+    select: "name price images category brand stock discountPercentage",
   });
 
-  // Lọc bỏ các sản phẩm đã bị xóa (product = null)
+  // Lọc ra những sản phẩm không tồn tại (đã bị xóa)
   const validItems = updatedCart.items.filter(item => item.product !== null);
-  
-  // Nếu có sản phẩm bị xóa, cập nhật lại giỏ hàng
-  if (validItems.length !== updatedCart.items.length) {
-    updatedCart.items = validItems;
-    await updatedCart.save();
-  }
 
   const totalItems = validItems.reduce((total, item) => total + item.quantity, 0);
   const totalAmount = validItems.reduce((total, item) => {
@@ -201,7 +199,7 @@ export const updateCartItem = asyncHandler(async (req, res) => {
 
   // Lưu lại số lượng cũ
   const oldQuantity = cart.items[itemIndex].quantity;
-  
+
   // Cập nhật số lượng
   cart.items[itemIndex].quantity = quantity;
 
@@ -210,17 +208,11 @@ export const updateCartItem = asyncHandler(async (req, res) => {
   // Populate và trả về giỏ hàng đã cập nhật
   const updatedCart = await Cart.findOne({ user: req.user._id }).populate({
     path: "items.product",
-    select: "name price images category brand stock",
+    select: "name price images category brand stock discountPercentage",
   });
 
-  // Lọc bỏ các sản phẩm đã bị xóa (product = null)
+  // Lọc ra những sản phẩm không tồn tại (đã bị xóa)
   const validItems = updatedCart.items.filter(item => item.product !== null);
-  
-  // Nếu có sản phẩm bị xóa, cập nhật lại giỏ hàng
-  if (validItems.length !== updatedCart.items.length) {
-    updatedCart.items = validItems;
-    await updatedCart.save();
-  }
 
   const totalItems = validItems.reduce((total, item) => total + item.quantity, 0);
   const totalAmount = validItems.reduce((total, item) => {
@@ -275,17 +267,11 @@ export const removeFromCart = asyncHandler(async (req, res) => {
   // Populate và trả về giỏ hàng đã cập nhật
   const updatedCart = await Cart.findOne({ user: req.user._id }).populate({
     path: "items.product",
-    select: "name price images category brand stock",
+    select: "name price images category brand stock discountPercentage",
   });
 
-  // Lọc bỏ các sản phẩm đã bị xóa (product = null)
+  // Lọc ra những sản phẩm không tồn tại (đã bị xóa)
   const validItems = updatedCart.items.filter(item => item.product !== null);
-  
-  // Nếu có sản phẩm bị xóa, cập nhật lại giỏ hàng
-  if (validItems.length !== updatedCart.items.length) {
-    updatedCart.items = validItems;
-    await updatedCart.save();
-  }
 
   const totalItems = validItems.reduce((total, item) => total + item.quantity, 0);
   const totalAmount = validItems.reduce((total, item) => {
@@ -328,7 +314,7 @@ export const clearCart = asyncHandler(async (req, res) => {
 // @access  Private
 export const getCartItemCount = asyncHandler(async (req, res) => {
   const cart = await Cart.findOne({ user: req.user._id });
-  
+
   const totalItems = cart ? cart.items.reduce((total, item) => total + item.quantity, 0) : 0;
   const distinctItemCount = cart ? cart.items.length : 0; // Số loại sản phẩm khác nhau
 

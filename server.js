@@ -3,7 +3,9 @@ import "dotenv/config"; // nạp .env sớm nhất
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import agenda from "./src/config/agenda.js";
+import { initializeAgenda } from "./src/config/agenda.js";
+import http from 'http'; 
+import { initializeSocket, sendNotificationToUser } from './src/config/socket.js'; // Import từ file socket
 
 // Modules của bạn
 import connectDB from "./src/config/db.js";
@@ -27,6 +29,17 @@ import similarProductRoutes from "./src/routes/similarProductRoutes.js";
 import reviewRoutes from "./src/routes/reviewRoutes.js";
 
 const app = express();
+const httpServer = http.createServer(app);
+
+// Khởi tạo Socket.IO
+const io = initializeSocket(httpServer);
+
+const agenda = initializeAgenda(io, sendNotificationToUser);
+
+// Gán `io` và `sendNotificationToUser` vào `app.locals` để các controller có thể truy cập
+app.locals.io = io;
+app.locals.sendNotificationToUser = sendNotificationToUser;
+app.locals.agenda = agenda;
 
 /* ----------------------------- Middlewares ------------------------------ */
 
@@ -75,9 +88,17 @@ app.use("/api/reviews", reviewRoutes);
 // Admin routes
 import voucherRoutes from "./src/routes/voucherRoutes.js";
 import pointsRoutes from "./src/routes/pointsRoutes.js";
+import analyticsRoutes from "./src/routes/analyticsRoutes.js";
+import adminCategoryRoutes from "./src/routes/adminCategoryRoutes.js";
+import adminProductRoutes from "./src/routes/adminProductRoutes.js";
+import adminBrandRoutes from "./src/routes/adminBrandRoutes.js";
 
 app.use("/api/admin/vouchers", voucherRoutes);
 app.use("/api/admin/points", pointsRoutes);
+app.use("/api/admin/analytics", analyticsRoutes);
+app.use("/api/admin/categories", adminCategoryRoutes);
+app.use("/api/admin/products", adminProductRoutes);
+app.use("/api/admin/brands", adminBrandRoutes);
 
 // Customer voucher and points routes
 app.use("/api/vouchers", voucherRoutes);
@@ -118,7 +139,7 @@ const serverStart = async () => {
       // Server vẫn tiếp tục chạy ngay cả khi Agenda lỗi
     }
     
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   } catch (e) {
     console.error("❌ Failed to start server:", e);
     process.exit(1);
