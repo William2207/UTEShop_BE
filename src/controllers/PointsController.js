@@ -1,6 +1,43 @@
 import User from "../models/user.js";
 import PointTransaction from "../models/PointTransaction.js";
+import Configuration from "../models/Configuration.js";
 import asyncHandler from "../utils/asyncHandler.js";
+
+// Helper function to get points configuration
+const getPointsConfigFromDB = async () => {
+  const config = await Configuration.findOne({ key: 'points_config' });
+  if (config) {
+    return config.value;
+  }
+  
+  // Default configuration
+  const defaultConfig = {
+    pointsValue: 1000, // 1000 VND = 1 point
+    silverThreshold: 1000,
+    goldThreshold: 5000,
+    pointsPerOrder: 1
+  };
+  
+  // Save default config to DB
+  await Configuration.create({
+    key: 'points_config',
+    value: defaultConfig,
+    description: 'Points system configuration'
+  });
+  
+  return defaultConfig;
+};
+
+// Helper function to calculate tier based on points and config
+const calculateTier = (points, config) => {
+  if (points >= config.goldThreshold) {
+    return 'GOLD';
+  } else if (points >= config.silverThreshold) {
+    return 'SILVER';
+  } else {
+    return 'BRONZE';
+  }
+};
 
 // @desc    Get all customers with points (Admin only)
 // @route   GET /api/admin/points/customers
@@ -29,11 +66,59 @@ export const getCustomersWithPoints = asyncHandler(async (req, res) => {
     .sort({ 'loyaltyPoints.balance': -1 })
     .skip(skip)
     .limit(parseInt(limit));
+  
+  // Calculate points used for each customer
+  const customersWithPointsUsed = await Promise.all(
+    customers.map(async (customer) => {
+      // Calculate total points earned
+      const pointsEarned = await PointTransaction.aggregate([
+        {
+          $match: {
+            user: customer._id,
+            type: { $in: ['EARNED', 'ADJUSTMENT'] }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: '$points' }
+          }
+        }
+      ]);
+
+      // Calculate total points redeemed/used
+      const pointsUsed = await PointTransaction.aggregate([
+        {
+          $match: {
+            user: customer._id,
+            type: { $in: ['REDEEMED', 'EXPIRED'] }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: '$points' }
+          }
+        }
+      ]);
+
+      const totalEarned = pointsEarned[0]?.total || 0;
+      const totalUsed = pointsUsed[0]?.total || 0;
+
+      return {
+        ...customer.toObject(),
+        pointsEarned: totalEarned,
+        pointsUsed: totalUsed,
+        // Current balance should equal earned - used
+        remainingPoints: customer.loyaltyPoints.balance
+      };
+    })
+  );
     
   const total = await User.countDocuments(filter);
   
   res.json({
-    customers,
+    customers: customersWithPointsUsed,
     pagination: {
       current: parseInt(page),
       pages: Math.ceil(total / limit),
@@ -158,13 +243,11 @@ export const createPointTransaction = asyncHandler(async (req, res) => {
       break;
   }
   
-  // Update user's tier based on new balance
-  let newTier = 'BRONZE';
-  if (newBalance >= 5000) {
-    newTier = 'GOLD';
-  } else if (newBalance >= 1000) {
-    newTier = 'SILVER';
-  }
+  // Get current points configuration
+  const config = await getPointsConfigFromDB();
+  
+  // Update user's tier based on new balance and config
+  const newTier = calculateTier(newBalance, config);
   
   user.loyaltyPoints.balance = newBalance;
   user.loyaltyPoints.tier = newTier;
@@ -235,8 +318,11 @@ export const earnPointsFromOrder = asyncHandler(async (req, res) => {
     throw new Error('Points already earned for this order');
   }
   
-  // Calculate points (1 point per 1000 VND)
-  const pointsEarned = Math.floor(orderAmount / 1000);
+  // Get current points configuration
+  const config = await getPointsConfigFromDB();
+  
+  // Calculate points based on configuration
+  const pointsEarned = Math.floor(orderAmount / config.pointsValue);
   
   if (pointsEarned <= 0) {
     res.status(400);
@@ -256,13 +342,8 @@ export const earnPointsFromOrder = asyncHandler(async (req, res) => {
   const user = await User.findById(userId);
   const newBalance = user.loyaltyPoints.balance + pointsEarned;
   
-  // Update tier
-  let newTier = 'BRONZE';
-  if (newBalance >= 5000) {
-    newTier = 'GOLD';
-  } else if (newBalance >= 1000) {
-    newTier = 'SILVER';
-  }
+  // Calculate tier using existing config
+  const newTier = calculateTier(newBalance, config);
   
   user.loyaltyPoints.balance = newBalance;
   user.loyaltyPoints.tier = newTier;
@@ -306,13 +387,9 @@ export const redeemPoints = asyncHandler(async (req, res) => {
   // Update user's points
   const newBalance = user.loyaltyPoints.balance - points;
   
-  // Update tier if necessary
-  let newTier = 'BRONZE';
-  if (newBalance >= 5000) {
-    newTier = 'GOLD';
-  } else if (newBalance >= 1000) {
-    newTier = 'SILVER';
-  }
+  // Get current points configuration and update tier
+  const config = await getPointsConfigFromDB();
+  const newTier = calculateTier(newBalance, config);
   
   user.loyaltyPoints.balance = newBalance;
   user.loyaltyPoints.tier = newTier;
@@ -327,6 +404,76 @@ export const redeemPoints = asyncHandler(async (req, res) => {
     newBalance,
     newTier,
     transaction: transaction._id
+  });
+});
+
+// @desc    Use points for order discount
+// @route   POST /api/points/use-for-order
+// @access  Private
+export const usePointsForOrder = asyncHandler(async (req, res) => {
+  const { points, orderId, orderNumber } = req.body;
+  const userId = req.user._id;
+  
+  if (!points || points <= 0) {
+    res.status(400);
+    throw new Error('Invalid points amount');
+  }
+  
+  if (!orderId) {
+    res.status(400);
+    throw new Error('Order ID is required');
+  }
+  
+  const user = await User.findById(userId);
+  
+  if (user.loyaltyPoints.balance < points) {
+    res.status(400);
+    throw new Error('Insufficient points balance');
+  }
+  
+  // Check if points already used for this order
+  const existingTransaction = await PointTransaction.findOne({
+    user: userId,
+    order: orderId,
+    type: 'REDEEMED'
+  });
+  
+  if (existingTransaction) {
+    res.status(400);
+    throw new Error('Points already used for this order');
+  }
+  
+  // Create redemption transaction with order reference
+  const transaction = await PointTransaction.create({
+    user: userId,
+    type: 'REDEEMED',
+    points,
+    description: `Sử dụng ${points} điểm cho đơn hàng ${orderNumber || orderId}`,
+    order: orderId
+  });
+  
+  // Update user's points
+  const newBalance = user.loyaltyPoints.balance - points;
+  
+  // Get current points configuration and update tier
+  const config = await getPointsConfigFromDB();
+  const newTier = calculateTier(newBalance, config);
+  
+  user.loyaltyPoints.balance = newBalance;
+  user.loyaltyPoints.tier = newTier;
+  await user.save();
+  
+  // Calculate discount amount (1 point = 1000 VND)
+  const discountAmount = points * 1000;
+  
+  res.json({
+    success: true,
+    pointsUsed: points,
+    discountAmount,
+    newBalance,
+    newTier,
+    transaction: transaction._id,
+    message: `Đã sử dụng ${points} điểm cho đơn hàng`
   });
 });
 
@@ -413,20 +560,47 @@ export const getPointsStats = asyncHandler(async (req, res) => {
 export const updatePointsConfig = asyncHandler(async (req, res) => {
   const { pointsValue, silverThreshold, goldThreshold } = req.body;
   
-  // This would typically be stored in a configuration collection
-  // For now, we'll just return the updated config
-  const config = {
-    pointsValue: pointsValue || 1000,
-    silverThreshold: silverThreshold || 1000,
-    goldThreshold: goldThreshold || 5000,
-    updatedAt: new Date()
+  // Validate input
+  if (!pointsValue || !silverThreshold || !goldThreshold) {
+    res.status(400);
+    throw new Error('All configuration values are required');
+  }
+  
+  if (silverThreshold >= goldThreshold) {
+    res.status(400);
+    throw new Error('Gold threshold must be greater than silver threshold');
+  }
+  
+  const newConfig = {
+    pointsValue: parseInt(pointsValue),
+    silverThreshold: parseInt(silverThreshold),
+    goldThreshold: parseInt(goldThreshold),
+    pointsPerOrder: 1
   };
   
-  // TODO: Save to configuration collection
+  // Save to configuration collection
+  await Configuration.findOneAndUpdate(
+    { key: 'points_config' },
+    { 
+      value: newConfig,
+      description: 'Points system configuration'
+    },
+    { upsert: true, new: true }
+  );
+  
+  // Update all existing users' tiers based on new thresholds
+  const users = await User.find({ role: 'customer' });
+  for (let user of users) {
+    const newTier = calculateTier(user.loyaltyPoints.balance, newConfig);
+    if (user.loyaltyPoints.tier !== newTier) {
+      user.loyaltyPoints.tier = newTier;
+      await user.save();
+    }
+  }
   
   res.json({
     message: 'Points configuration updated successfully',
-    config
+    config: newConfig
   });
 });
 
@@ -434,13 +608,6 @@ export const updatePointsConfig = asyncHandler(async (req, res) => {
 // @route   GET /api/points/config
 // @access  Public
 export const getPointsConfig = asyncHandler(async (req, res) => {
-  // TODO: Fetch from configuration collection
-  const config = {
-    pointsValue: 1000, // 1000 VND = 1 point
-    silverThreshold: 1000,
-    goldThreshold: 5000,
-    pointsPerOrder: 1 // 1 point per 1000 VND
-  };
-  
+  const config = await getPointsConfigFromDB();
   res.json(config);
 });

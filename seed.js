@@ -2,8 +2,13 @@ import mongoose from "mongoose";
 import Product from "./src/models/product.js";
 import Category from "./src/models/category.js";
 import Brand from "./src/models/brand.js";
-import dotenv from "dotenv";
 
+const MONGO_URI = "mongodb://127.0.0.1:27017/fashion_store";
+
+async function seed() {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("✅ Kết nối MongoDB thành công!");
 dotenv.config();
 const MONGO_URI = process.env.MONGO_URI;
 async function seed() {

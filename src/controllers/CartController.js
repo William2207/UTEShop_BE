@@ -22,21 +22,30 @@ export const getCart = asyncHandler(async (req, res) => {
     });
   }
 
+  // Lọc ra những sản phẩm không tồn tại (đã bị xóa)
+  const validItems = cart.items.filter(item => item.product !== null);
+
+  // Nếu có sản phẩm không tồn tại, cập nhật lại giỏ hàng
+  if (validItems.length !== cart.items.length) {
+    cart.items = validItems;
+    await cart.save();
+  }
+
   // Tính tổng số lượng và tổng tiền
-  const totalItems = cart.items.reduce((total, item) => total + item.quantity, 0);
-  const totalAmount = cart.items.reduce((total, item) => {
+  const totalItems = validItems.reduce((total, item) => total + item.quantity, 0);
+  const totalAmount = validItems.reduce((total, item) => {
     const itemPrice = item.product.price * item.quantity;
     const discountAmount = item.product.discountPercentage > 0
       ? itemPrice * item.product.discountPercentage / 100
       : 0;
     return total + (itemPrice - discountAmount);
   }, 0);
-  const distinctItemCount = cart.items.length; // Số loại sản phẩm khác nhau
+  const distinctItemCount = validItems.length; // Số loại sản phẩm khác nhau
 
   res.status(200).json({
     success: true,
     data: {
-      items: cart.items,
+      items: validItems,
       totalItems,
       totalAmount,
       distinctItemCount, // Số loại sản phẩm khác nhau cho badge
@@ -112,17 +121,20 @@ export const addToCart = asyncHandler(async (req, res) => {
     select: "name price images category brand stock discountPercentage",
   });
 
-  const totalItems = updatedCart.items.reduce((total, item) => total + item.quantity, 0);
-  const totalAmount = updatedCart.items.reduce((total, item) => {
+  // Lọc ra những sản phẩm không tồn tại (đã bị xóa)
+  const validItems = updatedCart.items.filter(item => item.product !== null);
+
+  const totalItems = validItems.reduce((total, item) => total + item.quantity, 0);
+  const totalAmount = validItems.reduce((total, item) => {
     return total + (item.product.price * item.quantity);
   }, 0);
-  const distinctItemCount = updatedCart.items.length; // Số loại sản phẩm khác nhau
+  const distinctItemCount = validItems.length; // Số loại sản phẩm khác nhau
 
   console.log('🛒 Backend AddToCart Debug:', {
     isNewProduct,
     totalItems,
     distinctItemCount,
-    cartItems: updatedCart.items.map(item => ({
+    cartItems: validItems.map(item => ({
       productId: item.product._id,
       quantity: item.quantity
     }))
@@ -132,7 +144,7 @@ export const addToCart = asyncHandler(async (req, res) => {
     success: true,
     message: "Đã thêm sản phẩm vào giỏ hàng",
     data: {
-      items: updatedCart.items,
+      items: validItems,
       totalItems,
       totalAmount,
       distinctItemCount, // Số loại sản phẩm khác nhau cho badge
@@ -199,11 +211,14 @@ export const updateCartItem = asyncHandler(async (req, res) => {
     select: "name price images category brand stock discountPercentage",
   });
 
-  const totalItems = updatedCart.items.reduce((total, item) => total + item.quantity, 0);
-  const totalAmount = updatedCart.items.reduce((total, item) => {
+  // Lọc ra những sản phẩm không tồn tại (đã bị xóa)
+  const validItems = updatedCart.items.filter(item => item.product !== null);
+
+  const totalItems = validItems.reduce((total, item) => total + item.quantity, 0);
+  const totalAmount = validItems.reduce((total, item) => {
     return total + (item.product.price * item.quantity);
   }, 0);
-  const distinctItemCount = updatedCart.items.length; // Số loại sản phẩm khác nhau
+  const distinctItemCount = validItems.length; // Số loại sản phẩm khác nhau
 
   console.log('🛒 UpdateCartItem Debug:', {
     productId,
@@ -219,7 +234,7 @@ export const updateCartItem = asyncHandler(async (req, res) => {
     success: true,
     message: "Đã cập nhật số lượng sản phẩm",
     data: {
-      items: updatedCart.items,
+      items: validItems,
       totalItems,
       totalAmount,
       distinctItemCount, // Số loại sản phẩm khác nhau cho badge
@@ -255,17 +270,20 @@ export const removeFromCart = asyncHandler(async (req, res) => {
     select: "name price images category brand stock discountPercentage",
   });
 
-  const totalItems = updatedCart.items.reduce((total, item) => total + item.quantity, 0);
-  const totalAmount = updatedCart.items.reduce((total, item) => {
+  // Lọc ra những sản phẩm không tồn tại (đã bị xóa)
+  const validItems = updatedCart.items.filter(item => item.product !== null);
+
+  const totalItems = validItems.reduce((total, item) => total + item.quantity, 0);
+  const totalAmount = validItems.reduce((total, item) => {
     return total + (item.product.price * item.quantity);
   }, 0);
-  const distinctItemCount = updatedCart.items.length; // Số loại sản phẩm khác nhau
+  const distinctItemCount = validItems.length; // Số loại sản phẩm khác nhau
 
   res.status(200).json({
     success: true,
     message: "Đã xóa sản phẩm khỏi giỏ hàng",
     data: {
-      items: updatedCart.items,
+      items: validItems,
       totalItems,
       totalAmount,
       distinctItemCount, // Số loại sản phẩm khác nhau cho badge

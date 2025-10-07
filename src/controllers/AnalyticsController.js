@@ -206,6 +206,17 @@ class AnalyticsController {
         const formattedOrders = orders.map(order => ({
             id: order._id,
             orderCode: `#ORD${order._id.toString().slice(-6).toUpperCase()}`,
+            customer: order.user?.name || 'Khách hàng đã xóa',
+            customerEmail: order.user?.email || 'N/A',
+            products: order.items
+                .map(item => {
+                    // Kiểm tra nếu sản phẩm đã bị xóa
+                    if (!item.product) {
+                        return `Sản phẩm đã xóa x${item.quantity}`;
+                    }
+                    return `${item.product.name} x${item.quantity}`;
+                })
+                .join(', '),
             customer: order.user.name,
             customerEmail: order.user.email,
             products: order.items.map(item => `${item.product.name} x${item.quantity}`).join(', '),
@@ -523,6 +534,15 @@ class AnalyticsController {
 
         return orders.map(order => ({
             id: `#ORD${order._id.toString().slice(-3).toUpperCase()}`,
+            customer: order.user?.name || 'Khách hàng đã xóa',
+            products: order.items
+                .map(item => {
+                    if (!item.product) {
+                        return `Sản phẩm đã xóa x${item.quantity}`;
+                    }
+                    return `${item.product.name} x${item.quantity}`;
+                })
+                .join(', '),
             customer: order.user.name,
             products: order.items.map(item => `${item.product.name} x${item.quantity}`).join(', '),
             total: order.totalPrice,

@@ -138,12 +138,23 @@ class OrderController {
 
     // Save order
     await order.save();
-    await agenda.schedule("in 1 minute", "process pending order", {
-      orderId: order._id,
-    });
-    console.log(`Job scheduled for order ${order._id} in 1 minute.`);
+    
+    // Schedule job with Agenda (if available)
+    try {
+      const agenda = req.app.locals.agenda;
+      if (agenda) {
+        await agenda.schedule("in 1 minute", "process pending order", {
+          orderId: order._id,
+        });
+        console.log(`Job scheduled for order ${order._id} in 1 minute.`);
+      }
+    } catch (agendaError) {
+      console.warn("⚠️ Agenda scheduling failed (non-critical):", agendaError.message);
+    }
+    
     console.log("✅ ORDER - Order saved successfully:", order._id);
 
+    // Remove ordered items from user's cart
     const notificationMessage = `Đơn hàng #${order._id} của bạn đã được tạo thành công!`;
     
     // 1. Lưu thông báo vào database
@@ -158,11 +169,25 @@ class OrderController {
 
     // Clear user's cart after order creation
     try {
-      await Cart.findOneAndUpdate({ user: userId }, { items: [] });
-      console.log("🛒 ORDER - Cart cleared");
+      const cart = await Cart.findOne({ user: userId });
+      if (cart && cart.items.length > 0) {
+        // Lấy danh sách product IDs đã đặt hàng
+        const orderedProductIds = orderItems.map(item => item.product.toString());
+
+        // Lọc ra những sản phẩm chưa được đặt hàng
+        const remainingItems = cart.items.filter(
+          cartItem => !orderedProductIds.includes(cartItem.product.toString())
+        );
+
+        // Cập nhật giỏ hàng với những sản phẩm còn lại
+        cart.items = remainingItems;
+        await cart.save();
+
+        console.log("🛒 ORDER - Removed ordered items from cart, remaining items:", remainingItems.length);
+      }
     } catch (cartError) {
       console.log(
-        "⚠️ ORDER - Cart clear failed (not critical):",
+        "⚠️ ORDER - Cart update failed (not critical):",
         cartError.message
       );
     }
@@ -228,6 +253,183 @@ class OrderController {
     res.status(200).json({
       message: "Order cancelled successfully",
       order,
+    });
+  });
+
+  // ==================== ADMIN METHODS ====================
+
+  // Get all orders for admin
+  getAllOrdersAdmin = asyncHandler(async (req, res) => {
+    const { 
+      page = 1, 
+      limit = 10, 
+      status, 
+      paymentStatus,
+      paymentMethod,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Build filter
+    const filter = {};
+    if (status) filter.status = status;
+    if (paymentStatus) filter.paymentStatus = paymentStatus;
+    if (paymentMethod) filter.paymentMethod = paymentMethod;
+
+    // Build sort
+    const sort = {};
+    sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+    const orders = await Order.find(filter)
+      .populate("user", "name email phone")
+      .populate("items.product", "name price images")
+      .sort(sort)
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+
+    const total = await Order.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      orders,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalItems: total,
+        itemsPerPage: parseInt(limit)
+      }
+    });
+  });
+
+  // Get order statistics for admin
+  getOrderStatistics = asyncHandler(async (req, res) => {
+    const { startDate, endDate } = req.query;
+
+    // Build date filter
+    const dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.createdAt = {};
+      if (startDate) dateFilter.createdAt.$gte = new Date(startDate);
+      if (endDate) dateFilter.createdAt.$lte = new Date(endDate);
+    }
+
+    // Get statistics
+    const [
+      totalOrders,
+      pendingOrders,
+      processingOrders,
+      shippedOrders,
+      deliveredOrders,
+      cancelledOrders,
+      totalRevenue,
+      paidOrders,
+      unpaidOrders
+    ] = await Promise.all([
+      Order.countDocuments(dateFilter),
+      Order.countDocuments({ ...dateFilter, status: 'pending' }),
+      Order.countDocuments({ ...dateFilter, status: 'processing' }),
+      Order.countDocuments({ ...dateFilter, status: 'shipped' }),
+      Order.countDocuments({ ...dateFilter, status: 'delivered' }),
+      Order.countDocuments({ ...dateFilter, status: 'cancelled' }),
+      Order.aggregate([
+        { $match: { ...dateFilter, status: 'delivered' } },
+        { $group: { _id: null, total: { $sum: '$totalPrice' } } }
+      ]),
+      Order.countDocuments({ ...dateFilter, paymentStatus: 'paid' }),
+      Order.countDocuments({ ...dateFilter, paymentStatus: 'unpaid' })
+    ]);
+
+    res.status(200).json({
+      success: true,
+      statistics: {
+        totalOrders,
+        ordersByStatus: {
+          pending: pendingOrders,
+          processing: processingOrders,
+          shipped: shippedOrders,
+          delivered: deliveredOrders,
+          cancelled: cancelledOrders
+        },
+        totalRevenue: totalRevenue[0]?.total || 0,
+        paymentStatus: {
+          paid: paidOrders,
+          unpaid: unpaidOrders
+        }
+      }
+    });
+  });
+
+  // Get order by ID for admin
+  getOrderByIdAdmin = asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+
+    const order = await Order.findById(orderId)
+      .populate("user", "name email phone")
+      .populate("items.product", "name price images description");
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      order
+    });
+  });
+
+  // Update order status
+  updateOrderStatus = asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+    const { status, paymentStatus } = req.body;
+
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+
+    // Update status if provided
+    if (status) {
+      order.status = status;
+    }
+
+    // Update payment status if provided
+    if (paymentStatus) {
+      order.paymentStatus = paymentStatus;
+    }
+
+    await order.save();
+
+    // Send notification to user
+    try {
+      const io = req.app.locals.io;
+      const sendNotificationToUser = req.app.locals.sendNotificationToUser;
+      
+      if (io && sendNotificationToUser && status) {
+        sendNotificationToUser(io, order.user, 'order_status_update', {
+          orderId: order._id,
+          newStatus: status,
+          message: `Đơn hàng #${order._id} của bạn đã được cập nhật sang trạng thái: ${status}`
+        });
+      }
+    } catch (notificationError) {
+      console.warn("⚠️ Notification failed (non-critical):", notificationError.message);
+    }
+
+    const updatedOrder = await Order.findById(orderId)
+      .populate("user", "name email phone")
+      .populate("items.product", "name price images");
+
+    res.status(200).json({
+      success: true,
+      message: "Order updated successfully",
+      order: updatedOrder
     });
   });
 }

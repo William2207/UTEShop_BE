@@ -40,7 +40,15 @@ const userSchema = new mongoose.Schema(
         enum: ["BRONZE", "SILVER", "GOLD"],
         default: "BRONZE",
       }
-    }
+    },
+    
+    // Track voucher claims để kiểm soát limit chính xác
+    voucherClaims: [{
+      voucherCode: { type: String, required: true },
+      claimCount: { type: Number, default: 1, min: 1 },
+      lastClaimed: { type: Date, default: Date.now },
+      source: { type: String, enum: ["REVIEW", "ADMIN_GIFT", "PROMOTION", "LOYALTY", "OTHER"], default: "OTHER" }
+    }]
   },
   { timestamps: true }
 );

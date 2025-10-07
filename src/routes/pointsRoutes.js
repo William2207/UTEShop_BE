@@ -6,6 +6,7 @@ import {
   getCustomerPointHistory,
   earnPointsFromOrder,
   redeemPoints,
+  usePointsForOrder,
   getPointsStats,
   updatePointsConfig,
   getPointsConfig
@@ -23,6 +24,7 @@ router.use(protect);
 router.get('/history', getCustomerPointHistory);
 router.post('/earn', earnPointsFromOrder);
 router.post('/redeem', redeemPoints);
+router.post('/use-for-order', usePointsForOrder);
 
 // Admin routes
 router.use(admin); // All routes below require admin access
