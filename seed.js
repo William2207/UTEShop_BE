@@ -9,14 +9,26 @@ async function seed() {
   try {
     await mongoose.connect(MONGO_URI);
     console.log("✅ Kết nối MongoDB thành công!");
+dotenv.config();
+const MONGO_URI = process.env.MONGO_URI;
+async function seed() {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("✅ Kết nối MongoDB thành công!");
 
-        // Tạo categories
-        const categories = await Category.insertMany([
-            { name: "Áo", description: "Các loại áo thun, sơ mi, hoodie" },
-            { name: "Quần", description: "Quần jeans, quần short, quần tây" },
-            { name: "Giày", description: "Sneaker, sandal, giày da" },
-            { name: "Phụ kiện", description: "Túi xách, balo, thắt lưng" },
-        ]);
+    // Xóa dữ liệu cũ
+    await Product.deleteMany();
+    await Category.deleteMany();
+    await Brand.deleteMany();
+    console.log("🗑️ Đã xoá dữ liệu cũ!");
+
+    // Tạo categories
+    const categories = await Category.insertMany([
+      { name: "Áo", description: "Các loại áo thun, sơ mi, hoodie" },
+      { name: "Quần", description: "Quần jeans, quần short, quần tây" },
+      { name: "Giày", description: "Sneaker, sandal, giày da" },
+      { name: "Phụ kiện", description: "Túi xách, balo, thắt lưng" },
+    ]);
 
     const [ao, quan, giay, phukien] = categories;
 

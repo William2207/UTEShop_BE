@@ -3,12 +3,13 @@ import Product from "../models/product.js";
 import Cart from "../models/cart.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import momoService from "../services/momoServices.js";
-
+import Notification from "../models/Notification.js";
 class OrderController {
   // Create a new order
   createOrder = asyncHandler(async (req, res) => {
     console.log("🛒 ORDER CREATE - req.user:", req.user);
     console.log("🛒 ORDER CREATE - req.body:", req.body);
+    const { agenda, io, sendNotificationToUser } = req.app.locals;
 
     const {
       items,
@@ -154,6 +155,19 @@ class OrderController {
     console.log("✅ ORDER - Order saved successfully:", order._id);
 
     // Remove ordered items from user's cart
+    const notificationMessage = `Đơn hàng #${order._id} của bạn đã được tạo thành công!`;
+    
+    // 1. Lưu thông báo vào database
+    const newNotification = new Notification({
+      user: userId,
+      message: notificationMessage,
+      link: `/orders/tracking/${order._id}`, // Link để người dùng xem chi tiết đơn hàng
+    });
+    await newNotification.save();
+
+    sendNotificationToUser(io, userId, 'new_notification', newNotification);
+
+    // Clear user's cart after order creation
     try {
       const cart = await Cart.findOne({ user: userId });
       if (cart && cart.items.length > 0) {

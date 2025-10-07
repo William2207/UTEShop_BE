@@ -4,6 +4,7 @@ import User from "../models/user.js";
 import UserController from "../controllers/UserController.js";
 import upload from "../middlewares/cloudinaryUpload.js";
 import { claimReviewReward, getUserVouchers } from '../controllers/rewardController.js';
+import { claimReviewReward } from '../controllers/rewardController.js';
 import { getNotifications, markNotificationsAsRead } from '../controllers/notificationController.js';
 const router = express.Router();
 
